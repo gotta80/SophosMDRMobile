@@ -9,6 +9,23 @@ Funzioni:
 - **Classificazione del caso**: verdetto (falso positivo, vero positivo benigno/malevolo, inconcludente), motivazione, nota e chiusura, con conferma esplicita.
 - Chat con gli analisti e invio commenti (scorciatoia `@sophos`), login con PIN, dark mode, modalità demo con dati finti.
 
+## Screenshot
+
+Modalità demo (`MOCK_MODE=true`): i dati sono inventati.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/01-dashboard.jpg" width="220" alt="Dashboard"><br><sub>Dashboard</sub></td>
+    <td align="center"><img src="docs/screenshots/02-casi.jpg" width="220" alt="Lista casi"><br><sub>Lista casi</sub></td>
+    <td align="center"><img src="docs/screenshots/03-dettaglio.jpg" width="220" alt="Dettaglio caso"><br><sub>Dettaglio caso</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/04-classifica.jpg" width="220" alt="Classifica il caso"><br><sub>Classificazione</sub></td>
+    <td align="center"><img src="docs/screenshots/05-spiegazione-ai.jpg" width="220" alt="Spiegazione AI"><br><sub>Spiegazione AI</sub></td>
+    <td align="center"><img src="docs/screenshots/06-dashboard-dark.jpg" width="220" alt="Dashboard in modalità scura"><br><sub>Modalità scura</sub></td>
+  </tr>
+</table>
+
 ## Avvio rapido (Docker)
 
 ```bash
