@@ -1,0 +1,13 @@
+services:
+  sophos-mdr-mobile:
+    build: .
+    container_name: sophos-mdr-mobile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3456
+    # BIND_IP: 127.0.0.1 (default) se un reverse proxy sullo stesso host pubblica l'app in HTTPS;
+    # oppure l'IP LAN del server per raggiungerla dalla rete locale (HTTP, protetta da PIN).
+    ports:
+      - "${BIND_IP:-127.0.0.1}:3456:3456"
