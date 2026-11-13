@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { CaseStatus, CaseSummary } from '../types';
-import { SEVERITY_BAR, timeAgo } from '../lib/format';
+import CaseCard from './CaseCard';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { SeverityBadge, StatusText } from './Badges';
 
 type FilterKey = 'all' | 'action' | 'active' | 'resolved';
 const FILTERS: { key: FilterKey; label: string; test: (s: CaseStatus) => boolean }[] = [
@@ -59,7 +58,7 @@ export default function CaseList({ onOpen, onUnauthorized, onLogout, mock }: Pro
   const actionCount = (cases ?? []).filter((c) => c.status === 'actionRequired').length;
 
   return (
-    <div className="flex h-[100dvh] flex-col">
+    <div className="flex h-full flex-col">
       <header className="z-10 border-b border-black/5 bg-ios-bg/80 pt-safe backdrop-blur-xl dark:border-white/10">
         <div className="flex items-center justify-between px-4 pb-2 pt-2">
           <h1 className="text-[28px] font-bold leading-tight">
@@ -115,27 +114,7 @@ export default function CaseList({ onOpen, onUnauthorized, onLogout, mock }: Pro
         <ul className="space-y-2.5 py-3">
           {visible.map((c) => (
             <li key={c.id}>
-              <button
-                onClick={() => onOpen(c.id)}
-                className="relative w-full overflow-hidden rounded-2xl bg-white p-3.5 pl-4 text-left shadow-sm ring-1 ring-black/5 transition active:scale-[0.99] active:opacity-80 dark:bg-neutral-900 dark:ring-white/10"
-              >
-                <span className={`absolute inset-y-0 left-0 w-1 ${SEVERITY_BAR[c.severity]}`} />
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <SeverityBadge severity={c.severity} />
-                    <StatusText status={c.status} />
-                  </div>
-                  <span className="text-xs text-neutral-400">{timeAgo(c.updatedAt)}</span>
-                </div>
-                <h2 className="line-clamp-2 text-[15px] font-semibold leading-snug">{c.title}</h2>
-                {!c.primaryEntity && c.shortId && <p className="mt-1 text-xs text-neutral-500">#{c.shortId} · {c.type}</p>}
-                {c.primaryEntity && (
-                  <p className="mt-1 flex items-center gap-1 truncate text-xs text-neutral-500">
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
-                    {c.primaryEntity}
-                  </p>
-                )}
-              </button>
+              <CaseCard c={c} onOpen={onOpen} />
             </li>
           ))}
         </ul>

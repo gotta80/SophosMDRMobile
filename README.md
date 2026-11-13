@@ -2,7 +2,12 @@
 
 PWA mobile-first (pensata per iPhone/Safari) per consultare e rispondere ai casi **Sophos MDR** tramite le Cases GraphQL API di Sophos. Backend Node/Express (BFF) + frontend React/Vite/Tailwind, in **un unico container**. I segreti Sophos restano nel backend; il token OAuth2 è tenuto in cache in memoria e rinnovato prima della scadenza.
 
-Funzioni: lista casi con filtri e pull-to-refresh, dettaglio (key findings in Markdown, host e utenti coinvolti, stato di isolamento), chat con gli analisti e invio commenti (con scorciatoia `@sophos`), login con PIN, dark mode, modalità demo con dati finti.
+Funzioni:
+- **Dashboard** (home): casi da gestire/aperti, casi e ore di impegno SOC nel periodo (7/30/90 giorni), andamento, severità ed esito delle analisi (% falsi positivi).
+- Lista casi con filtri e pull-to-refresh; dettaglio con key findings (Markdown), detection, tecniche MITRE, host e utenti coinvolti.
+- **Spiegazione AI** (Sophos AI, solo in inglese): riassunto del caso e analisi per singola detection.
+- **Classificazione del caso**: verdetto (falso positivo, vero positivo benigno/malevolo, inconcludente), motivazione, nota e chiusura, con conferma esplicita.
+- Chat con gli analisti e invio commenti (scorciatoia `@sophos`), login con PIN, dark mode, modalità demo con dati finti.
 
 ## Avvio rapido (Docker)
 
@@ -20,11 +25,15 @@ Safari → Condividi → **Aggiungi alla schermata Home**: l'app si apre a scher
 
 Crea una **API credential** in Sophos Central/Fusion e imposta nel `.env`: `MOCK_MODE=false`, `SOPHOS_CLIENT_ID`, `SOPHOS_CLIENT_SECRET` (e `SOPHOS_TENANT_ID` solo per credenziali Partner/Organization).
 
-Permessi: per leggere i casi basta un ruolo di sola lettura; per **commentare** serve `Investigation:update` (e `mention_partner` per `@sophos`). Scegli il ruolo con meno privilegi che li includa ed evita ruoli amministrativi. L'app usa solo: lista/dettaglio casi, commenti, evidenze e lettura asset.
+Permessi: per leggere i casi basta un ruolo di sola lettura; per **commentare**, **classificare/chiudere** i casi serve `Investigation:update` (e `mention_partner` per `@sophos`). Per host e utenti l'app legge le detection (`Alert:read`); con `Agent:read` mostra anche lo stato di isolamento dell'host. Scegli il ruolo con meno privilegi che includa questi permessi ed evita ruoli amministrativi: puoi leggere i permessi effettivi della tua credenziale con la query `authzPermissions`.
+
+Il backend usa solo: lista/dettaglio casi, commenti, `updateCase` (classificazione/chiusura), evidenze, detection (alert), metriche (`caseSummaryMetrics`, `casesAggregation`) e le query AI `generativeAICaseSummary` / `generativeAIDetectionAnalysis`.
 
 Note sull'integrazione (endpoint `https://api.taegis.sophos.com/graphql`, header `Authorization` + `X-Tenant-ID`):
-- Il tipo `Case` espone solo ID degli asset: host e utenti sono risolti con una seconda query (`assetsV2`), con cache di 10 minuti.
-- Gli stati sono definiti per tenant: la mappatura su Action Required / In attesa ecc. è euristica sui nomi (`toStatus` in `server/src/services/sophosQueries.ts`).
+- Il tipo `Case` espone solo gli ID delle evidenze: detection, MITRE, host e utenti si ricavano dagli alert (`detectionRetrieveById`), con cache di 10 minuti. Senza detection (e senza `Agent:read`) host e utente non sono disponibili.
+- Gli stati primari sono per tenant (`new`, `awaiting_sophos_assignment`, `in_progress`, `customer_action_required`, `on_hold`, `closed`): la mappatura è in `toStatus` (`server/src/services/sophosQueries.ts`).
+- Le risposte AI di Sophos sono solo in inglese; verdetti e motivazioni sono letti a runtime (`casePrimaryVerdicts`, `caseSecondaryVerdicts`).
+- La classificazione scrive su Sophos con una sola `updateCase` (verdetto, motivazione, nota e, se richiesto, stato chiuso): compatibilità e requisiti sono validati da Sophos e l'errore viene mostrato.
 - Nessun flag "analista MDR" sui commenti: i tuoi sono riconosciuti da `authorId` uguale al client id API (oppure `SOPHOS_MY_AUTHOR_IDS`).
 - Il backend Sophos risponde a volte con errori transitori (`conn busy`) se si combinano più query: caso e commenti sono richieste separate e ci sono tentativi automatici.
 - Filtri e ordinamento sono applicati dal backend (ultimi 300 casi), non via CQL.

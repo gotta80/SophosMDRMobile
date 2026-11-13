@@ -1,4 +1,4 @@
-import type { CaseComment, CaseDetails, CaseSummary } from './types';
+import type { CaseComment, CaseDetails, CaseSummary, ClassifyInput, DashboardData, Reference } from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public retryAfter?: number) {
@@ -17,16 +17,23 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+const post = (data: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(data) });
+const enc = encodeURIComponent;
+
 export const api = {
   session: () => req<{ authenticated: boolean; mock: boolean }>('/api/session'),
-  login: (pin: string) => req<{ ok: true }>('/api/login', { method: 'POST', body: JSON.stringify({ pin }) }),
+  login: (pin: string) => req<{ ok: true }>('/api/login', post({ pin })),
   logout: () => req<{ ok: true }>('/api/logout', { method: 'POST', body: '{}' }),
   cases: (status?: string[]) =>
     req<{ cases: CaseSummary[] }>(`/api/cases${status?.length ? `?status=${status.join(',')}` : ''}`).then((r) => r.cases),
-  caseDetails: (id: string) => req<{ case: CaseDetails }>(`/api/cases/${encodeURIComponent(id)}`).then((r) => r.case),
+  caseDetails: (id: string) => req<{ case: CaseDetails }>(`/api/cases/${enc(id)}`).then((r) => r.case),
   addComment: (id: string, text: string) =>
-    req<{ comment: CaseComment }>(`/api/cases/${encodeURIComponent(id)}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ text }),
-    }).then((r) => r.comment),
+    req<{ comment: CaseComment }>(`/api/cases/${enc(id)}/comments`, post({ text })).then((r) => r.comment),
+
+  dashboard: (days: number) => req<{ dashboard: DashboardData }>(`/api/dashboard?days=${days}`).then((r) => r.dashboard),
+  reference: () => req<{ reference: Reference }>('/api/reference').then((r) => r.reference),
+  classify: (id: string, input: ClassifyInput) => req<{ ok: true }>(`/api/cases/${enc(id)}/classify`, post(input)),
+  aiCase: (id: string) => req<{ text: string }>(`/api/cases/${enc(id)}/ai`).then((r) => r.text),
+  aiDetection: (id: string, detectionId: string) =>
+    req<{ text: string }>(`/api/cases/${enc(id)}/ai/detection`, post({ detectionId })).then((r) => r.text),
 };

@@ -4,6 +4,9 @@ import type { CaseComment, CaseDetails } from '../types';
 import { fmtDateTime, timeAgo } from '../lib/format';
 import { SeverityBadge, StatusText } from './Badges';
 import Markdown from './Markdown';
+import AiSheet from './AiSheet';
+import ClassifySheet from './ClassifySheet';
+import { VERDICT_CHIP, verdictLabel } from '../lib/format';
 
 interface Props {
   id: string;
@@ -20,6 +23,7 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
   const [showMitre, setShowMitre] = useState(false);
   const [showDetections, setShowDetections] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [sheet, setSheet] = useState<null | 'ai' | 'classify'>(null);
   const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -60,9 +64,16 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
 
   // Scroll in fondo alla chat quando arrivano nuovi messaggi
   const count = c?.comments.length ?? 0;
+  // (non al primo caricamento: si parte dall'alto, dove ci sono riepilogo e azioni)
+  const prevCount = useRef<number | null>(null);
+  const loaded = !!c;
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
-  }, [count]);
+    if (!loaded) return;
+    if (prevCount.current !== null && count > prevCount.current) {
+      scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
+    }
+    prevCount.current = count;
+  }, [count, loaded]);
 
   // Textarea auto-espandibile
   useLayoutEffect(() => {
@@ -150,6 +161,37 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
                 <code className="min-w-0 flex-1 truncate text-xs text-neutral-600 dark:text-neutral-300">{c.id}</code>
                 <button onClick={copyId} className="shrink-0 text-xs font-semibold text-ios-blue active:opacity-50">
                   {copied ? 'Copiato ✓' : 'Copia ID'}
+                </button>
+              </div>
+
+              {c.verdict && (
+                <div className="mt-3 rounded-xl bg-black/[0.04] p-2.5 dark:bg-white/[0.06]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-neutral-500">Esito</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${VERDICT_CHIP[c.verdict.name] ?? 'bg-black/5'}`}>
+                      {verdictLabel(c.verdict)}
+                    </span>
+                    {c.secondaryVerdict && c.secondaryVerdict.name !== 'not_set' && (
+                      <span className="text-xs text-neutral-500">{c.secondaryVerdict.title}</span>
+                    )}
+                  </div>
+                  {c.closeReason && <p className="mt-1.5 whitespace-pre-wrap text-xs text-neutral-500">{c.closeReason}</p>}
+                </div>
+              )}
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setSheet('ai')}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-ios-blue/10 py-2.5 text-sm font-semibold text-ios-blue active:opacity-60"
+                >
+                  <span aria-hidden>✨</span> Spiegazione AI
+                </button>
+                <button
+                  onClick={() => setSheet('classify')}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-semibold active:opacity-60 dark:bg-white/10"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1" /></svg>
+                  {c.verdict ? 'Modifica esito' : 'Classifica'}
                 </button>
               </div>
 
@@ -250,6 +292,19 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
           </button>
         </div>
       </form>
+
+      {c && sheet === 'ai' && <AiSheet c={c} onClose={() => setSheet(null)} onUnauthorized={onUnauthorized} />}
+      {c && sheet === 'classify' && (
+        <ClassifySheet
+          c={c}
+          onClose={() => setSheet(null)}
+          onUnauthorized={onUnauthorized}
+          onDone={() => {
+            setSheet(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }

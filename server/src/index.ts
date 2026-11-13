@@ -12,7 +12,7 @@ import {
   requireAuth,
   setSessionCookie,
 } from './auth';
-import { CASE_SEVERITIES, CASE_STATUSES, type CaseFilters, type CaseSeverity, type CaseStatus } from './types';
+import { CASE_SEVERITIES, CASE_STATUSES, type CaseFilters, type CaseSeverity, type CaseStatus, type ClassifyInput } from './types';
 import { mockStore } from './services/mockData';
 import { SophosError, sophosClient } from './services/sophosClient';
 
@@ -116,6 +116,71 @@ app.post(
     const comment = config.mock ? mockStore.addComment(id, text) : await sophosClient.addCaseComment(id, text);
     if (!comment) return res.status(404).json({ error: 'not_found' });
     res.status(201).json({ comment });
+  }),
+);
+
+// ---- dashboard, riferimenti, classificazione e spiegazioni AI
+app.get(
+  '/api/dashboard',
+  requireAuth,
+  wrap(async (req, res) => {
+    const days = [7, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+    res.json({ dashboard: config.mock ? mockStore.dashboard(days) : await sophosClient.getDashboard(days) });
+  }),
+);
+
+app.get(
+  '/api/reference',
+  requireAuth,
+  wrap(async (_req, res) => {
+    res.json({ reference: config.mock ? mockStore.getReference() : await sophosClient.getReference() });
+  }),
+);
+
+/** Classifica (verdetto) e opzionalmente chiude il caso. Scrive su Sophos: richiede conferma lato UI. */
+app.post(
+  '/api/cases/:id/classify',
+  requireAuth,
+  wrap(async (req, res) => {
+    const b = req.body ?? {};
+    const input: ClassifyInput = {
+      verdictId: typeof b.verdictId === 'string' ? b.verdictId : '',
+      secondaryVerdictId: typeof b.secondaryVerdictId === 'string' && b.secondaryVerdictId ? b.secondaryVerdictId : undefined,
+      closeReason: typeof b.closeReason === 'string' && b.closeReason.trim() ? b.closeReason.trim().slice(0, 1000) : undefined,
+      close: b.close === true,
+    };
+    if (!input.verdictId) return res.status(400).json({ error: 'verdict_required' });
+    const id = String(req.params.id);
+    if (config.mock) {
+      if (!mockStore.classify(id, input)) return res.status(404).json({ error: 'not_found' });
+    } else {
+      await sophosClient.classifyCase(id, input);
+    }
+    res.json({ ok: true });
+  }),
+);
+
+app.get(
+  '/api/cases/:id/ai',
+  requireAuth,
+  wrap(async (req, res) => {
+    const id = String(req.params.id);
+    const text = config.mock ? mockStore.aiCaseSummary(id) : await sophosClient.aiCaseSummary(id);
+    if (text === null) return res.status(404).json({ error: 'not_found' });
+    res.json({ text });
+  }),
+);
+
+app.post(
+  '/api/cases/:id/ai/detection',
+  requireAuth,
+  wrap(async (req, res) => {
+    const detectionId = typeof req.body?.detectionId === 'string' ? req.body.detectionId : '';
+    if (!detectionId) return res.status(400).json({ error: 'detection_required' });
+    const id = String(req.params.id);
+    const text = config.mock ? mockStore.aiDetection(id, detectionId) : await sophosClient.aiDetection(id, detectionId);
+    if (text === null) return res.status(404).json({ error: 'not_found' });
+    res.json({ text });
   }),
 );
 

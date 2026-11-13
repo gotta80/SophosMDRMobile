@@ -1,5 +1,5 @@
 /** Dati mock realistici per MOCK_MODE=true. Stato in memoria: i commenti aggiunti restano fino al riavvio. */
-import type { CaseComment, CaseDetails, CaseFilters, CaseSummary } from '../types';
+import type { CaseComment, CaseDetails, CaseFilters, CaseSummary, ClassifyInput, DashboardData, Reference } from '../types';
 
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const A = (name = 'Sophos MDR Analyst'): CaseComment['author'] => ({ name, role: 'analyst' });
@@ -114,7 +114,7 @@ const cases: CaseDetails[] = [
   },
 ];
 
-const summarize = ({ summary, keyFindings, entities, detections, mitre, comments, ...s }: CaseDetails): CaseSummary => s;
+const summarize = ({ summary, keyFindings, detectionIds, entities, detections, mitre, comments, ...s }: CaseDetails): CaseSummary => s;
 
 export const mockStore = {
   list(filters: CaseFilters): CaseSummary[] {
@@ -125,7 +125,8 @@ export const mockStore = {
       .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
   },
   get(id: string): CaseDetails | null {
-    return cases.find((c) => c.id === id) ?? null;
+    const c = cases.find((x) => x.id === id);
+    return c ? { ...c, detectionIds: c.detections.map((d) => d.id) } : null;
   },
   addComment(id: string, text: string): CaseComment | null {
     const c = cases.find((x) => x.id === id);
@@ -137,4 +138,87 @@ export const mockStore = {
     if (c.status === 'actionRequired') c.status = 'investigating';
     return comment;
   },
+
+  getReference(): Reference {
+    return REF;
+  },
+
+  classify(id: string, input: ClassifyInput): boolean {
+    const c = cases.find((x) => x.id === id);
+    if (!c) return false;
+    c.verdict = REF.verdicts.find((v) => v.id === input.verdictId) ?? null;
+    c.secondaryVerdict = REF.secondaryVerdicts.find((v) => v.id === input.secondaryVerdictId) ?? null;
+    c.closeReason = input.closeReason;
+    if (input.close) c.status = 'resolved';
+    c.updatedAt = new Date().toISOString();
+    return true;
+  },
+
+  aiCaseSummary(id: string): string | null {
+    const c = cases.find((x) => x.id === id);
+    return c
+      ? `The Case \`${c.shortId ?? c.id}\` (${c.title}) concerns host **${c.primaryEntity}**. Analysts observed the activity listed in the detections and found no evidence of lateral movement. Recommended: validate the activity with the asset owner. _(Mock AI summary)_`
+      : null;
+  },
+
+  aiDetection(id: string, detectionId: string): string | null {
+    const c = cases.find((x) => x.id === id);
+    if (!c?.detections.some((d) => d.id === detectionId)) return null;
+    return `- The detection \`${detectionId}\` shows a process launched under the user account listed in the case.\n- No malicious reputation was found for the observed destinations.\n\nRecommended triage actions:\n- Confirm the activity with the user.\n- Review related process lineage. _(Mock AI analysis)_`;
+  },
+
+  dashboard(days: number): DashboardData {
+    const since = Date.now() - days * 86_400_000;
+    const list = cases.filter((c) => +new Date(c.createdAt) >= since);
+    const sev = (['critical', 'high', 'medium', 'low'] as const).map((key) => ({ key, count: list.filter((c) => c.severity === key).length }));
+    const bin = days > 31 ? 7 : 1;
+    const nBins = Math.ceil(days / bin);
+    const end = Date.now();
+    const daily = Array.from({ length: nBins }, (_, i) => ({
+      date: new Date(end - (nBins - i) * bin * 86_400_000).toISOString().slice(0, 10),
+      count: 0,
+    }));
+    for (const c of list) {
+      const idx = Math.min(nBins - 1, Math.max(0, Math.floor((+new Date(c.createdAt) - (end - nBins * bin * 86_400_000)) / (bin * 86_400_000))));
+      daily[idx].count++;
+    }
+    const byVerdict = [
+      { title: 'True Positive - Benign', name: 'true_positive_benign', count: 3 },
+      { title: 'False Positive', name: 'false_positive', count: 1 },
+      { title: 'Senza verdetto', name: 'none', count: list.filter((c) => c.status !== 'resolved').length },
+    ];
+    return {
+      days,
+      generatedAt: new Date().toISOString(),
+      kpi: {
+        totalCases: list.length,
+        actionRequiredCases: cases.filter((c) => c.status === 'actionRequired').length,
+        effortHours: 12.5,
+        escalatedCases: Math.max(0, list.length - 1),
+        weekendCases: 1,
+        openCases: cases.filter((c) => c.status !== 'resolved').length,
+      },
+      bySeverity: sev,
+      byVerdict,
+      byStatus: (['actionRequired', 'new', 'investigating', 'onHold', 'resolved'] as const).map((key) => ({ key, count: list.filter((c) => c.status === key).length })),
+      daily,
+      attention: cases.filter((c) => c.status === 'actionRequired').map(summarize),
+    };
+  },
+};
+
+const REF: Reference = {
+  verdicts: [
+    { id: 'v-fp', name: 'false_positive', title: 'False Positive' },
+    { id: 'v-tpb', name: 'true_positive_benign', title: 'True Positive - Benign' },
+    { id: 'v-tpm', name: 'true_positive_malicious', title: 'True Positive - Malicious' },
+    { id: 'v-inc', name: 'inconclusive', title: 'Inconclusive' },
+  ],
+  secondaryVerdicts: [
+    { id: 's-ns', name: 'not_set', title: 'Not Set' },
+    { id: 's-ofp', name: 'other_false_positive', title: 'Other: False Positive' },
+    { id: 's-ob', name: 'other_benign', title: 'Other: Benign Activity' },
+    { id: 's-ua', name: 'user_activity_unconfirmed', title: 'User activity (unconfirmed)' },
+  ],
+  closedStatusId: 'closed',
 };

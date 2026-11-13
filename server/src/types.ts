@@ -14,9 +14,18 @@ export interface Entity {
   detail?: string;
 }
 
+export interface Ref {
+  id: string;
+  name: string;
+  title: string;
+}
+
 export interface CaseSummary {
   id: string;
   shortId?: string;
+  verdict?: Ref | null;
+  secondaryVerdict?: Ref | null;
+  closeReason?: string;
   title: string;
   severity: CaseSeverity;
   status: CaseStatus;
@@ -51,6 +60,8 @@ export interface CaseDetails extends CaseSummary {
   summary: string;
   /** Markdown "key findings" scritto dagli analisti (solo nel dettaglio) */
   keyFindings?: string;
+  /** ID delle detection collegate (evidenze del caso): servono per l'analisi AI */
+  detectionIds?: string[];
   entities: Entity[];
   detections: Detection[];
   mitre: MitreTechnique[];
@@ -60,4 +71,36 @@ export interface CaseDetails extends CaseSummary {
 export interface CaseFilters {
   statuses?: CaseStatus[];
   severities?: CaseSeverity[];
+}
+
+/** Dati di riferimento del tenant per la classificazione dei casi. */
+export interface Reference {
+  verdicts: Ref[]; // verdetti primari (False Positive, True Positive - Benign/Malicious, Inconclusive)
+  secondaryVerdicts: Ref[]; // motivazioni
+  closedStatusId: string | null;
+}
+
+export interface ClassifyInput {
+  verdictId: string;
+  secondaryVerdictId?: string;
+  closeReason?: string;
+  close: boolean;
+}
+
+export interface DashboardData {
+  days: number;
+  generatedAt: string;
+  kpi: {
+    totalCases: number;
+    actionRequiredCases: number;
+    effortHours: number;
+    escalatedCases: number;
+    weekendCases: number;
+    openCases: number;
+  };
+  bySeverity: { key: CaseSeverity; count: number }[];
+  byVerdict: { title: string; name: string; count: number }[];
+  byStatus: { key: CaseStatus; count: number }[];
+  daily: { date: string; count: number }[];
+  attention: CaseSummary[]; // casi che richiedono azione
 }

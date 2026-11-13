@@ -15,7 +15,16 @@
  * Lo schema NON espone MITRE, hosts/utenti né detection come liste sul tipo Case (solo conteggi;
  * le liste stanno in `caseEvidence`, i cui sotto-campi non sono ancora mappati qui: vedi Q_CASE_EVIDENCE_TODO).
  */
-import type { CaseComment, CaseDetails, CaseSeverity, CaseStatus, CaseSummary, Entity } from '../types';
+import type {
+  CaseComment,
+  CaseDetails,
+  CaseSeverity,
+  CaseStatus,
+  CaseSummary,
+  Detection,
+  Entity,
+  MitreTechnique,
+} from '../types';
 
 // ---------------------------------------------------------------- GraphQL documents
 
@@ -25,8 +34,11 @@ const CASE_FIELDS = `
   title
   severity
   type { name title }
-  primaryStatus { name title isClosed }
+  primaryStatus { id name title isClosed }
   secondaryStatus { name title }
+  primaryVerdict { id name title }
+  secondaryVerdict { id name title }
+  closeReason
   managedBy
   tags
   createdAt
@@ -68,6 +80,60 @@ export const Q_CASE_COMMENTS = /* GraphQL */ `
   }
 `;
 
+/* ---- Dati di riferimento (stati / verdetti): sono per-tenant, letti a runtime e messi in cache ---- */
+export const Q_REFERENCE_STATUSES = /* GraphQL */ `
+  query { casePrimaryStatuses(arguments: {}) { primaryStatuses { id name title isClosed } } }
+`;
+export const Q_REFERENCE_VERDICTS = /* GraphQL */ `
+  query { casePrimaryVerdicts(arguments: {}) { primaryVerdicts { id name title } } }
+`;
+export const Q_REFERENCE_SECONDARY_VERDICTS = /* GraphQL */ `
+  query { caseSecondaryVerdicts(arguments: {}) { secondaryVerdicts { id name title } } }
+`;
+
+/* ---- Spiegazioni AI (verificate: ~12-16 s; output SOLO in inglese, followUpPrompt non cambia la lingua) ---- */
+export const Q_AI_CASE_SUMMARY = /* GraphQL */ `
+  query AiCaseSummary($caseId: ID!) {
+    generativeAICaseSummary(caseId: $caseId, outputFormat: MARKDOWN) { summary }
+  }
+`;
+export const Q_AI_DETECTION = /* GraphQL */ `
+  query AiDetection($detectionId: String!) {
+    generativeAIDetectionAnalysis(detectionId: $detectionId, outputFormat: MARKDOWN) { analysis }
+  }
+`;
+
+/* ---- Metriche (verificate) ---- */
+export const Q_METRICS = /* GraphQL */ `
+  query Metrics($input: CaseSummaryMetricsInput!) {
+    caseSummaryMetrics(input: $input) {
+      totalCases actionRequiredCases securityOperationsEffortHours
+      escalatedCases unescalatedCases weekendCases weekendCasesPercentage
+    }
+  }
+`;
+/** Sintassi CQL verificata: "where <cond> | aggregate count by <campo>" (NON supporta raggruppamenti per data). */
+export const Q_AGGREGATION = /* GraphQL */ `
+  query Agg($query: String!) { casesAggregation(arguments: { query: $query }) { aggregation } }
+`;
+
+/**
+ * Aggiornamento del caso (classificazione/chiusura). `updateCase` ha semantica PATCH (UpdateCaseInput).
+ * Chiudere = primaryStatusId dello stato "closed" + primaryVerdictId (+ secondaryVerdictId, closeReason).
+ */
+export const M_UPDATE_CASE = /* GraphQL */ `
+  mutation UpdateCase($input: UpdateCaseInput!) {
+    updateCase(input: $input) {
+      id
+      primaryStatus { id name title isClosed }
+      primaryVerdict { id name title }
+      secondaryVerdict { id name title }
+      closeReason
+      updatedAt
+    }
+  }
+`;
+
 /** Aggiunge un commento (verificato dalla pagina addCaseComment). */
 export const M_ADD_COMMENT = /* GraphQL */ `
   mutation AddCaseComment($input: AddCaseComment!) {
@@ -87,6 +153,7 @@ export const Q_CASE_EVIDENCE = /* GraphQL */ `
   query GetCaseEvidence($arguments: CaseEvidenceArguments!) {
     caseEvidence(arguments: $arguments) {
       assetsEvidence { assetId }
+      detectionsEvidence { detectionId }
       detectionsEvidenceCount
       eventsEvidenceCount
     }
@@ -97,6 +164,27 @@ export const Q_ASSET = /* GraphQL */ `
   query GetAsset($where: AssetWhereInputV2) {
     assetsV2(first: 1, filter: { where: $where }) {
       assets { id hostnames { hostname } users { username } isolationStatus osFamily lastSeenAt }
+    }
+  }
+`;
+
+/**
+ * Detection del caso via alert (permesso Alert:read, disponibile anche senza Agent:read).
+ * Fornisce titolo, severità (0..1), descrizione, tecniche MITRE e le entità (host, utente, IP...).
+ */
+export const Q_DETECTIONS = /* GraphQL */ `
+  query GetDetections($ids: [String!]) {
+    detectionRetrieveById(in: { iDs: $ids }) {
+      alerts {
+        list {
+          id
+          metadata { title severity }
+          attack_technique_ids
+          combined_username
+          entities { entities }
+          sensor_types
+        }
+      }
     }
   }
 `;
@@ -131,17 +219,31 @@ export function toSeverity(v: unknown): CaseSeverity {
 }
 
 /**
- * Gli stati sono definiti per-tenant (casePrimaryStatuses / caseSecondaryStatuses).
- * Mappatura euristica sui nomi; adatta qui se i tuoi nomi differiscono.
+ * Stati primari del tenant (verificati con casePrimaryStatuses):
+ * new, awaiting_sophos_assignment, in_progress, customer_action_required, on_hold, closed.
+ * "awaiting_sophos_assignment" = in attesa di un analista Sophos -> per te è ancora "Nuovo", NON azione richiesta.
  */
+const STATUS_BY_NAME: Record<string, CaseStatus> = {
+  new: 'new',
+  awaiting_sophos_assignment: 'new',
+  in_progress: 'investigating',
+  customer_action_required: 'actionRequired',
+  on_hold: 'onHold',
+  closed: 'resolved',
+};
 export function toStatus(c: Raw): CaseStatus {
   if (c.primaryStatus?.isClosed || c.closedAt) return 'resolved';
-  const names = norm(`${c.primaryStatus?.name} ${c.secondaryStatus?.name}`);
-  if (names.includes('action') || names.includes('awaiting')) return 'actionRequired';
-  if (names.includes('hold')) return 'onHold';
-  if (names.includes('investigat') || names.includes('progress') || names.includes('triage')) return 'investigating';
+  const byName = STATUS_BY_NAME[String(c.primaryStatus?.name ?? '').toLowerCase()];
+  if (byName) return byName;
+  // stato personalizzato non previsto: euristica sul nome
+  const n = norm(c.primaryStatus?.name);
+  if (n.includes('customer') && n.includes('action')) return 'actionRequired';
+  if (n.includes('hold')) return 'onHold';
+  if (n.includes('progress')) return 'investigating';
   return 'new';
 }
+
+const toRef = (r: Raw | null | undefined) => (r?.id ? { id: String(r.id), name: String(r.name), title: String(r.title ?? r.name) } : null);
 
 export function normalizeSummary(c: Raw): CaseSummary {
   const managed = norm(c.managedBy);
@@ -153,7 +255,10 @@ export function normalizeSummary(c: Raw): CaseSummary {
     status: toStatus(c),
     type: String(c.type?.title ?? c.type?.name ?? 'case'),
     managedBy: managed === 'provider' ? 'Sophos MDR' : managed === 'customer' ? 'Cliente' : String(c.managedBy ?? 'Sophos MDR'),
-    primaryEntity: null, // l'host principale non è sul tipo Case (vedi Q_CASE_EVIDENCE_TODO)
+    primaryEntity: null, // valorizzato dopo la risoluzione degli asset (vedi sophosClient.getCases)
+    verdict: toRef(c.primaryVerdict),
+    secondaryVerdict: toRef(c.secondaryVerdict),
+    closeReason: c.closeReason ? String(c.closeReason) : undefined,
     createdAt: String(c.createdAt ?? c.updatedAt ?? new Date().toISOString()),
     updatedAt: String(c.updatedAt ?? c.createdAt ?? new Date().toISOString()),
   };
@@ -193,6 +298,52 @@ export function keyFindingsText(kf: Raw | null | undefined): string | undefined 
   } catch {
     return String(kf.content);
   }
+}
+
+/** Severità alert Sophos (0..1) -> livelli app. */
+const scoreToSeverity = (s: unknown): CaseSeverity => {
+  const n = Number(s);
+  return n >= 0.9 ? 'critical' : n >= 0.7 ? 'high' : n >= 0.4 ? 'medium' : 'low';
+};
+
+/** Alert -> detection + MITRE + entità (host, utenti) del caso. Nessun nome host di destinazione: solo computerName/sensorHostName. */
+export function parseAlerts(alerts: Raw[]): { detections: Detection[]; mitre: MitreTechnique[]; entities: Entity[] } {
+  const detections: Detection[] = [];
+  const mitre = new Map<string, MitreTechnique>();
+  const hosts = new Map<string, Entity>();
+  const users = new Map<string, string>(); // chiave: username senza dominio, minuscolo
+
+  for (const a of alerts) {
+    detections.push({
+      id: String(a.id),
+      name: String(a.metadata?.title ?? a.id),
+      severity: a.metadata?.severity != null ? scoreToSeverity(a.metadata.severity) : null,
+      source: a.sensor_types?.[0] ? String(a.sensor_types[0]) : undefined,
+    });
+    for (const t of a.attack_technique_ids ?? []) if (!mitre.has(t)) mitre.set(t, { id: String(t), name: '' });
+
+    const list: string[] = a.entities?.entities ?? [];
+    const val = (prefix: string) => list.filter((e) => e.startsWith(prefix)).map((e) => e.slice(prefix.length));
+    const names = [...val('computerName:'), ...val('sensorHostName:'), ...val('sourceHostName:')];
+    for (const name of names) {
+      const ip = val(`hostNameAndHostIpAddress:${name}:`).find((x) => /^\d+\.\d+\.\d+\.\d+$/.test(x));
+      const prev = hosts.get(name.toLowerCase());
+      hosts.set(name.toLowerCase(), { id: `host:${name}`, type: 'host', name, detail: prev?.detail ?? ip });
+    }
+    for (const u of [a.combined_username, ...val('userName:'), ...val('processUsername:')]) {
+      if (!u) continue;
+      const key = String(u).split('\\').pop()!.toLowerCase();
+      if (!users.has(key) || (String(u).includes('\\') && !users.get(key)!.includes('\\'))) users.set(key, String(u));
+    }
+  }
+  return {
+    detections,
+    mitre: [...mitre.values()],
+    entities: [
+      ...hosts.values(),
+      ...[...users.values()].map((name) => ({ id: `user:${name}`, type: 'user' as const, name })),
+    ],
+  };
 }
 
 /** AssetV2 -> entità: un host (con stato isolamento) + un'entità per ogni utente. */

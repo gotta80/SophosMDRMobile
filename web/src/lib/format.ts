@@ -50,3 +50,35 @@ export const STATUS_CLASS: Record<CaseStatus, string> = {
   onHold: 'text-neutral-500 dark:text-neutral-400',
   resolved: 'text-green-600 dark:text-green-400',
 };
+
+/** Etichette italiane dei verdetti primari (per nome Sophos); per gli altri si usa il titolo originale. */
+const VERDICT_IT: Record<string, string> = {
+  false_positive: 'Falso positivo',
+  true_positive_benign: 'Vero positivo – benigno',
+  true_positive_malicious: 'Vero positivo – malevolo',
+  inconclusive: 'Inconcludente',
+  none: 'Senza verdetto',
+};
+export const verdictLabel = (v: { name: string; title: string }) => VERDICT_IT[v.name] ?? v.title;
+
+export const VERDICT_HINT: Record<string, string> = {
+  false_positive: "L'attività rilevata non è una minaccia reale (errore di rilevamento).",
+  true_positive_benign: "L'attività è reale ma legittima o autorizzata.",
+  true_positive_malicious: "L'attività è reale e malevola: minaccia confermata.",
+  inconclusive: 'Non ci sono dati sufficienti per decidere.',
+};
+
+/** Colori dei verdetti nei grafici (barre) e nei chip. */
+export const VERDICT_BAR: Record<string, string> = {
+  false_positive: 'bg-slate-400',
+  true_positive_benign: 'bg-emerald-500',
+  true_positive_malicious: 'bg-red-500',
+  inconclusive: 'bg-amber-400',
+  none: 'bg-neutral-300 dark:bg-neutral-600',
+};
+export const VERDICT_CHIP: Record<string, string> = {
+  false_positive: 'bg-slate-500/15 text-slate-600 dark:text-slate-300',
+  true_positive_benign: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400',
+  true_positive_malicious: 'bg-red-500/15 text-red-600 dark:text-red-400',
+  inconclusive: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
+};
