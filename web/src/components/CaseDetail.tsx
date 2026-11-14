@@ -48,12 +48,12 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
     return () => clearInterval(iv);
   }, [load]);
 
-  // Segue il viewport visuale: la barra di risposta resta sopra la tastiera virtuale iOS.
+  // Follows the visual viewport: the reply bar stays above the iOS virtual keyboard.
   useLayoutEffect(() => {
     const vv = window.visualViewport;
     if (!vv || !root.current) return;
     const el = root.current;
-    // Con la tastiera aperta iOS riduce il viewport visuale e può spostarlo (offsetTop): si segue entrambi.
+    // With the keyboard open, iOS shrinks the visual viewport and may shift it (offsetTop): we follow both.
     const fit = () => {
       el.style.height = `${vv.height}px`;
       el.style.transform = vv.offsetTop ? `translateY(${vv.offsetTop}px)` : '';
@@ -70,9 +70,9 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
     };
   }, []);
 
-  // Scroll in fondo alla chat quando arrivano nuovi messaggi
+  // Scroll to the bottom of the chat when new messages arrive
   const count = c?.comments.length ?? 0;
-  // (non al primo caricamento: si parte dall'alto, dove ci sono riepilogo e azioni)
+  // (not on first load: we start from the top, where summary and actions are)
   const prevCount = useRef<number | null>(null);
   const loaded = !!c;
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
     prevCount.current = count;
   }, [count, loaded]);
 
-  // Textarea auto-espandibile
+  // Auto-growing textarea
   useLayoutEffect(() => {
     const a = area.current;
     if (!a) return;
@@ -99,7 +99,7 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
       const comment: CaseComment = await api.addComment(id, body);
       setC((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
       setText('');
-      load(); // riallinea stato/analisti
+      load(); // realign status/analysts
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return onUnauthorized();
       setError(
@@ -133,7 +133,7 @@ export default function CaseDetail({ id, onBack, onUnauthorized }: Props) {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  // Key findings: la parte "Investigation Summary" è sempre visibile, i dettagli sono comprimibili.
+  // Key findings: the "Investigation Summary" part is always visible, the details are collapsible.
   const split = c?.keyFindings?.search(/^#{2,4}\s*Investigation Details/im) ?? -1;
   const kfSummary = split > 0 ? c!.keyFindings!.slice(0, split).replace(/\n-{3,}\s*$/, '') : c?.keyFindings ?? '';
   const kfDetails = split > 0 ? c!.keyFindings!.slice(split).replace(/^#{2,4}\s*Investigation Details:?\s*/i, '') : '';

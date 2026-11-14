@@ -11,7 +11,7 @@ import type {
 } from '../types';
 import type { Counts } from './sophosClient';
 
-/** Operazioni sui casi di un cliente, indipendenti da dove vivono (Fusion GraphQL o Central classic REST). */
+/** Operations on a customer's cases, independent of where they live (Fusion GraphQL or Central classic REST). */
 export interface CaseBackend {
   readonly kind: TenantKind;
   readonly capabilities: Capabilities;

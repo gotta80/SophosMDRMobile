@@ -13,7 +13,7 @@ const ICON: Record<string, string> = {
 };
 const ORDER = ['false_positive', 'true_positive_benign', 'true_positive_malicious', 'inconclusive'];
 
-/** Classificazione del caso (verdetto) con chiusura opzionale. Due passi: scelta e conferma esplicita. */
+/** Case classification (verdict) with optional closing. Two steps: choice and explicit confirmation. */
 export default function ClassifySheet({
   c,
   onClose,
@@ -40,7 +40,7 @@ export default function ClassifySheet({
       .reference()
       .then((r) => {
         setRef(r);
-        // default motivazione: "Not Set" se disponibile
+        // default reason: "Not Set" if available
         setSecondaryId((cur) => cur || r.secondaryVerdicts.find((s) => s.name === 'not_set')?.id || '');
       })
       .catch((e) => {

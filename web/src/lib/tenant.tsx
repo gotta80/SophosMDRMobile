@@ -30,9 +30,9 @@ const read = () => {
 };
 
 /**
- * Elenco dei clienti e cliente selezionato (ricordato sul dispositivo). Mentre il server verifica i clienti
- * ("probing") l'elenco viene riletto ogni pochi secondi. I figli si montano solo con un cliente già scelto, e
- * vengono rimontati al cambio (key), così ogni schermata ricarica i dati del cliente giusto.
+ * List of customers and selected customer (remembered on the device). While the server checks the customers
+ * ("probing") the list is re-read every few seconds. Children mount only once a customer is chosen, and
+ * are remounted on change (key), so every screen reloads the right customer's data.
  */
 export function TenantProvider({ onUnauthorized, children }: { onUnauthorized: () => void; children: ReactNode }) {
   const [tenants, setTenants] = useState<TenantInfo[] | null>(null);
@@ -85,14 +85,14 @@ export function TenantProvider({ onUnauthorized, children }: { onUnauthorized: (
     return ok.find((t) => t.id === chosen) ?? ok[0] ?? null;
   }, [tenants, chosen]);
 
-  // imposta subito l'header (prima che i figli lancino le loro richieste)
+  // set the header right away (before the children fire their requests)
   setApiTenant(current?.id ?? '');
 
   const select = useCallback((id: string) => {
     try {
       localStorage.setItem(KEY, id);
     } catch {
-      /* ignora */
+      /* ignore */
     }
     setChosen(id);
   }, []);

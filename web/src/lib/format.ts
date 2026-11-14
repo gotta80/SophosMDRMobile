@@ -52,7 +52,7 @@ export const STATUS_CLASS: Record<CaseStatus, string> = {
   resolved: 'text-green-600 dark:text-green-400',
 };
 
-/** Etichette italiane dei verdetti primari (per nome Sophos); per gli altri si usa il titolo originale. */
+/** Italian labels of the primary verdicts (by Sophos name); for the others the original title is used. */
 const VERDICT_IT: Record<string, string> = {
   false_positive: t('Falso positivo'),
   true_positive_benign: t('Vero positivo – benigno'),
@@ -69,7 +69,7 @@ export const VERDICT_HINT: Record<string, string> = {
   inconclusive: t('Non ci sono dati sufficienti per decidere.'),
 };
 
-/** Colori dei verdetti nei grafici (barre) e nei chip. */
+/** Verdict colors in the charts (bars) and in the chips. */
 export const VERDICT_BAR: Record<string, string> = {
   false_positive: 'bg-slate-400',
   true_positive_benign: 'bg-emerald-500',

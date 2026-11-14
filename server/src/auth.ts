@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { config } from './config';
 
 const COOKIE = 'mdr_session';
-// Se SESSION_SECRET non è impostato le sessioni decadono al riavvio del container.
+// If SESSION_SECRET is not set, sessions are lost when the container restarts.
 const secret = config.sessionSecret || crypto.randomBytes(32).toString('hex');
 
 const hmac = (data: string) => crypto.createHmac('sha256', secret).update(data).digest('base64url');
@@ -62,7 +62,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   res.status(401).json({ error: 'unauthorized' });
 }
 
-/** Rate limit semplice in memoria sui tentativi di login: 5 errori / 15 min per IP. */
+/** Simple in-memory rate limit on login attempts: 5 failures / 15 min per IP. */
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60_000;

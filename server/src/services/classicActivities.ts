@@ -1,12 +1,12 @@
 /**
- * Interpreta il registro attività di Sophos Central classic (GET /cases/v1/cases/{id}/activities).
- * Ogni riga è {userName, userEmail?, action, category, createdAt}; `action` è testo libero, ad esempio:
- *   Status changed from "on_hold" to "taking_action", notes changed from "" to "<testo dell'analista>"
+ * Parses the activity log of Sophos Central classic (GET /cases/v1/cases/{id}/activities).
+ * Each row is {userName, userEmail?, action, category, createdAt}; `action` is free text, for example:
+ *   Status changed from "on_hold" to "taking_action", notes changed from "" to "<analyst text>"
  *   Tags changed from "[]" to "["x"]"
- *   Created MdrCase ID: 934580 - <titolo>
+ *   Created MdrCase ID: 934580 - <title>
  *   Triggered the "Block user" action ...
- * Le note degli analisti arrivano come "notes changed": le mostriamo come messaggi. Endpoint non documentato
- * ma verificato sul tenant reale; se il formato cambia, le righe non riconosciute restano visibili come testo.
+ * Analyst notes arrive as "notes changed": we show them as messages. Undocumented endpoint
+ * but verified on a real tenant; if the format changes, unrecognized rows remain visible as text.
  */
 import type { Activity, ActivityChange } from '../types';
 import { currentLang } from '../lang';
@@ -73,7 +73,7 @@ const LABEL_IT: Record<string, string> = {
   investigation_reason: 'Motivo indagine',
 };
 
-/** Campi "di contorno": utili solo per il dettaglio tecnico. */
+/** Minor ("side") fields: only useful for the technical detail. */
 const MINOR = new Set(['case_queue', 'collaborators', 'tags', 'taking_action_type', 'taking_action_details', 'investigation_type', 'investigation_reason', 'pending_reason']);
 
 const SEVERITY_IT: Record<string, string> = { '2': 'Informational', '4': 'Low', '6': 'Medium', '8': 'High', '10': 'Critical' };
@@ -96,7 +96,7 @@ function pretty(field: string, v: string): string {
   return v || '—';
 }
 
-/** Spezza "a changed from "x" to "y", b changed from ..." in una lista di modifiche (virgolette interne non escapate). */
+/** Splits "a changed from "x" to "y", b changed from ..." into a list of changes (inner quotes are not escaped). */
 function parseChanges(action: string): { field: string; from: string; to: string }[] {
   const starts: { i: number; bodyAt: number; field: string }[] = [];
   const re = /(^|, )([A-Za-z_]+) changed from "/g;
@@ -104,7 +104,7 @@ function parseChanges(action: string): { field: string; from: string; to: string
   while ((m = re.exec(action))) starts.push({ i: m.index + m[1].length, bodyAt: m.index + m[0].length, field: m[2].toLowerCase() });
   const out: { field: string; from: string; to: string }[] = [];
   starts.forEach((s, k) => {
-    const end = k + 1 < starts.length ? starts[k + 1].i - 2 : action.length; // -2 = ", " che precede la modifica successiva
+    const end = k + 1 < starts.length ? starts[k + 1].i - 2 : action.length; // -2 = the ", " preceding the next change
     const body = action.slice(s.bodyAt, Math.max(end, s.bodyAt));
     const sep = body.indexOf('" to "');
     if (sep < 0) return;
@@ -130,7 +130,7 @@ export function parseActivities(rows: Raw[]): Activity[] {
         .map((c) => ({ label: labelOf(c.field), from: pretty(c.field, c.from), to: pretty(c.field, c.to) }));
       const onlyMinor = changes.every((c) => c.field === 'notes' ? false : MINOR.has(c.field));
       if (note && note.to.trim()) {
-        // sotto la nota si mostrano solo le modifiche rilevanti (stato, assegnazione, severità...), non quelle tecniche
+        // under the note only the relevant changes are shown (status, assignment, severity...), not the technical ones
         const major = changes
           .filter((c) => c.field !== 'notes' && !MINOR.has(c.field))
           .map((c) => ({ label: labelOf(c.field), from: pretty(c.field, c.from), to: pretty(c.field, c.to) }));

@@ -1,9 +1,9 @@
 /**
- * Connessione Sophos = una coppia client id/secret (credenziale API).
- *  - token OAuth2 in cache (rinnovato prima della scadenza);
- *  - whoami -> tipo di credenziale (tenant | partner | organization | distributor);
- *  - graphql(tenantId, ...) verso api.taegis.sophos.com con X-Tenant-ID del cliente scelto.
- * Una connessione partner/organization può elencare i tenant dei clienti.
+ * Sophos connection = one client id/secret pair (API credential).
+ *  - OAuth2 token cached (renewed before it expires);
+ *  - whoami -> credential type (tenant | partner | organization | distributor);
+ *  - graphql(tenantId, ...) towards api.taegis.sophos.com with the X-Tenant-ID of the selected customer.
+ * A partner/organization connection can list the customers' tenants.
  */
 import { config } from '../config';
 
@@ -26,7 +26,7 @@ export interface RawTenant {
   apiHost?: string;
 }
 
-const SKEW_MS = 60_000; // rinnova 60s prima della scadenza
+const SKEW_MS = 60_000; // renew 60s before expiry
 
 export class Connection {
   private token: { value: string; expiresAt: number } | null = null;
@@ -71,7 +71,7 @@ export class Connection {
     return (this.who = (await res.json()) as Whoami);
   }
 
-  /** Tenant dei clienti (solo credenziali partner/organization). */
+  /** Customers' tenants (partner/organization credentials only). */
   async listTenants(): Promise<RawTenant[]> {
     const who = await this.whoami();
     if (who.idType !== 'partner' && who.idType !== 'organization') return [];
@@ -91,7 +91,7 @@ export class Connection {
   }
 
   // ---------------------------------------------------------------- REST (Sophos Central classic)
-  /** GET su un'API regionale di Central (es. /cases/v1/cases) per un cliente: `apiHost` = host regionale del tenant. */
+  /** GET on a regional Central API (e.g. /cases/v1/cases) for a customer: `apiHost` = the tenant's regional host. */
   async rest<T>(apiHost: string, tenantId: string, path: string, retry = true): Promise<T> {
     const token = await this.getToken();
     const res = await fetch(`${apiHost}${path}`, { headers: { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenantId } });
@@ -106,7 +106,7 @@ export class Connection {
     return (await res.json()) as T;
   }
 
-  /** Host regionale (dataRegion) della credenziale di tenant, da whoami. */
+  /** Regional host (dataRegion) of the tenant credential, from whoami. */
   async ownApiHost(): Promise<string | undefined> {
     return (await this.whoami()).apiHosts.dataRegion;
   }
@@ -120,21 +120,21 @@ export class Connection {
       body: JSON.stringify({ query, variables }),
     });
     if (res.status === 401 && retry) {
-      this.token = null; // token scaduto/revocato: rinnova e riprova una volta
+      this.token = null; // token expired/revoked: renew and retry once
       await this.getToken(true);
       return this.graphql<T>(tenantId, query, variables, false, attempt);
     }
     if (!res.ok) throw new SophosError(`GraphQL Sophos HTTP ${res.status}`);
     const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
-    // Errori GraphQL = HTTP 200 con array `errors`
+    // GraphQL errors = HTTP 200 with an `errors` array
     if (json.errors?.length) {
       const msg = json.errors.map((e) => e.message).join('; ');
-      // errori transitori del backend Sophos (database occupato): riprova con breve attesa
+      // transient Sophos backend errors (database busy): retry after a short wait
       if (attempt < 3 && /conn busy|bad connection|timeout|temporar/i.test(msg)) {
         await new Promise((r) => setTimeout(r, 300 * attempt));
         return this.graphql<T>(tenantId, query, variables, retry, attempt + 1);
       }
-      // permessi insufficienti sul ruolo della credenziale, o tenant non accessibile con questa credenziale
+      // insufficient permissions on the credential's role, or tenant not accessible with this credential
       if (/not authorized|authorization denied/i.test(msg)) throw new SophosError(`not_authorized: ${msg}`, 403);
       throw new SophosError(`GraphQL: ${msg}`);
     }

@@ -1,8 +1,8 @@
 import { currentLang } from '../lang';
 /**
- * Adattatore per i casi sulla "classic dashboard" di Sophos Central (REST /cases/v1), per i clienti non ancora
- * migrati a Fusion. SOLA LETTURA: l'API REST non ha commenti, verdetto né AI (verificato sul tenant reale).
- * Endpoint usati: GET /cases, /cases/{id}, /cases/{id}/detections, /impacted-entities, /mitre-attack-summary.
+ * Adapter for the cases on the Sophos Central "classic dashboard" (REST /cases/v1), for customers not yet
+ * migrated to Fusion. READ-ONLY: the REST API has no comments, verdict or AI (verified on a real tenant).
+ * Endpoints used: GET /cases, /cases/{id}, /cases/{id}/detections, /impacted-entities, /mitre-attack-summary.
  */
 import { parseActivities } from './classicActivities';
 import type {
@@ -27,7 +27,7 @@ import type { Counts } from './sophosClient';
 
 type Raw = Record<string, any>;
 
-const MAX_PAGES = 6; // fino a 300 casi (50 per pagina)
+const MAX_PAGES = 6; // up to 300 cases (50 per page)
 const MAX_ENRICHED = 15;
 const CACHE_MS = 10 * 60_000;
 
@@ -43,7 +43,7 @@ function severity(s: unknown): CaseSeverity {
   return s === 'critical' || s === 'high' || s === 'medium' ? s : 'low'; // low / informational / notSet
 }
 
-/** Detection: severità numerica 1-10 -> livelli app. */
+/** Detection: numeric severity 1-10 -> app levels. */
 function detSeverity(n: unknown): CaseSeverity {
   const v = Number(n);
   return v >= 9 ? 'critical' : v >= 7 ? 'high' : v >= 4 ? 'medium' : 'low';
@@ -113,7 +113,7 @@ export class ClassicApi implements CaseBackend {
     return out;
   }
 
-  // ---------------------------------------------------------------- lettura
+  // ---------------------------------------------------------------- read
   async getCases(filters: CaseFilters): Promise<CaseSummary[]> {
     const all: CaseSummary[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
@@ -125,12 +125,12 @@ export class ClassicApi implements CaseBackend {
       .filter((c) => !filters.statuses?.length || filters.statuses.includes(c.status))
       .filter((c) => !filters.severities?.length || filters.severities.includes(c.severity))
       .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
-    // host principale sulle card dei casi aperti (best effort)
+    // main host on the open-case cards (best effort)
     for (const c of result.filter((x) => x.status !== 'resolved').slice(0, MAX_ENRICHED)) {
       try {
         c.primaryEntity = (await this.entities(c.id)).find((e) => e.type === 'host')?.name ?? null;
       } catch {
-        /* ignora */
+        /* ignore */
       }
     }
     return result;
@@ -145,7 +145,7 @@ export class ClassicApi implements CaseBackend {
       throw e;
     }
     const id = encodeURIComponent(caseId);
-    // sequenza: l'API Sophos non gradisce molte richieste parallele
+    // sequential: the Sophos API does not like many parallel requests
     const det = await this.get<{ items?: Raw[] }>(`/cases/${id}/detections`).catch(() => ({ items: [] as Raw[] }));
     const mitre = await this.get<{ tactics?: Raw[] }>(`/cases/${id}/mitre-attack-summary`).catch(() => ({ tactics: [] as Raw[] }));
     const entities = await this.entities(caseId).catch(() => [] as Entity[]);
@@ -175,7 +175,7 @@ export class ClassicApi implements CaseBackend {
     };
   }
 
-  /** Registro attività del caso (endpoint non documentato ma verificato): note degli analisti, stati, azioni, file. */
+  /** Case activity log (undocumented but verified endpoint): analyst notes, statuses, actions, files. */
   private async activities(caseId: string): Promise<Activity[]> {
     const rows: Raw[] = [];
     for (let page = 1; page <= 4; page++) {
@@ -186,7 +186,7 @@ export class ClassicApi implements CaseBackend {
     return parseActivities(rows);
   }
 
-  // ---------------------------------------------------------------- non disponibili sul lato classic
+  // ---------------------------------------------------------------- not available on the classic side
   private unsupported(): never {
     throw new SophosError('not_supported_classic', 405);
   }
@@ -206,7 +206,7 @@ export class ClassicApi implements CaseBackend {
     return this.unsupported();
   }
 
-  // ---------------------------------------------------------------- metriche calcolate dai casi
+  // ---------------------------------------------------------------- metrics computed from the cases
   private countsCache: { at: number; data: Counts } | null = null;
   async getCounts(): Promise<Counts> {
     if (this.countsCache && Date.now() - this.countsCache.at < 2 * 60_000) return this.countsCache.data;

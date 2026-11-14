@@ -1,4 +1,4 @@
-/** Modalità demo (MOCK_MODE): tre clienti finti: uno Fusion, uno classic (sola lettura) e uno non disponibile. */
+/** Demo mode (MOCK_MODE): three fake customers: one Fusion, one classic (read-only) and one unavailable. */
 import type { Activity, Capabilities, TenantKind } from '../types';
 import { currentLang } from '../lang';
 import type { CaseBackend } from './backend';
@@ -7,7 +7,7 @@ import { SophosError } from './sophosConnection';
 import type { Counts } from './sophosClient';
 import type { TenantInfo } from './registry';
 
-/** Cronologia di esempio per il cliente "classic" della demo. */
+/** Sample timeline for the demo "classic" customer. */
 function demoActivities(): Activity[] {
   if (currentLang() === 'en') return demoActivitiesEn();
   const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
@@ -46,7 +46,7 @@ class MockBackend implements CaseBackend {
   }
   async getCaseDetails(id: string) {
     const c = mockStore.get(id);
-    // sul lato classic non ci sono commenti, AI né ID detection per l'analisi
+    // on the classic side there are no comments, AI or detection IDs for the analysis
     return c && this.kind === 'classic' ? { ...c, comments: [], detectionIds: [], activities: demoActivities() } : c;
   }
   async addCaseComment(id: string, text: string) {
@@ -96,7 +96,7 @@ const TENANTS: (TenantInfo & { api?: CaseBackend })[] = [
 
 const locName = (n: string) => (currentLang() === 'en' ? n.replace('Cliente', 'Customer') : n);
 
-/** Stessa interfaccia del registro reale, con dati finti. */
+/** Same interface as the real registry, with fake data. */
 export const mockRegistry = {
   probing: false,
   lastRefresh: Date.now(),

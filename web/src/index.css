@@ -12,8 +12,8 @@
 }
 
 /*
- * L'app è ancorata all'area visibile (position: fixed) e la pagina intera non scorre: ogni schermata scorre al suo interno.
- * Evita su iOS i calcoli diversi di 100dvh / safe-area prima e dopo il primo trascinamento (barra in basso più alta all'apertura).
+ * The app is anchored to the visible area (position: fixed) and the whole page does not scroll: each screen scrolls internally.
+ * Avoids the different 100dvh / safe-area calculations on iOS before and after the first drag (taller bottom bar on first open).
  */
 html, body { height: 100%; overflow: hidden; }
 #root { position: fixed; inset: 0; overflow: hidden; }

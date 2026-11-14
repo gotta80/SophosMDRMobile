@@ -1,10 +1,10 @@
 import { currentLang } from '../lang';
 /**
- * Client Sophos.
- *  1. POST id.sophos.com/api/v2/oauth2/token  (client_credentials, scope=token) -> JWT, cache in memoria
- *  2. GET  api.central.sophos.com/whoami/v1    -> id e idType (tenant | organization | partner | distributor)
+ * Sophos client.
+ *  1. POST id.sophos.com/api/v2/oauth2/token  (client_credentials, scope=token) -> JWT, cached in memory
+ *  2. GET  api.central.sophos.com/whoami/v1    -> id and idType (tenant | organization | partner | distributor)
  *  3. POST api.taegis.sophos.com/graphql       -> Cases GraphQL (Authorization + X-Tenant-ID)
- * Segreti e token restano solo nel backend.
+ * Secrets and tokens stay in the backend only.
  */
 import { config } from '../config';
 import { Connection, SophosError } from './sophosConnection';
@@ -53,13 +53,13 @@ import {
   normalizeSummary,
 } from './sophosQueries';
 
-const MAX_PAGES = 3; // fino a 300 casi
+const MAX_PAGES = 3; // up to 300 cases
 const ENTITY_TTL_MS = 10 * 60_000;
-const MAX_DETECTIONS = 20; // detection recuperate per caso
-const REF_TTL_MS = 60 * 60_000; // dati di riferimento e risposte AI
+const MAX_DETECTIONS = 20; // detections fetched per case
+const REF_TTL_MS = 60 * 60_000; // reference data and AI answers
 const DASH_TTL_MS = 60_000;
-const MAX_ASSETS = 10; // asset risolti per caso
-const MAX_ENRICHED = 25; // casi aperti arricchiti con l'host nella lista
+const MAX_ASSETS = 10; // assets resolved per case
+const MAX_ENRICHED = 25; // open cases enriched with the host in the list
 
 export interface Counts {
   total: number;
@@ -76,7 +76,7 @@ interface Evidence {
 
 export { SophosError };
 
-/** API di un singolo cliente (tenant), raggiunto tramite una connessione. Le cache sono per tenant. */
+/** API of a single customer (tenant), reached through a connection. Caches are per tenant. */
 export class TenantApi implements CaseBackend {
   readonly kind = 'fusion' as const;
   readonly capabilities = { comments: true, classify: true, ai: true };
@@ -86,7 +86,7 @@ export class TenantApi implements CaseBackend {
     readonly tenantId: string,
   ) {}
 
-  /** ID autore dei commenti scritti da questa app (per distinguerli da quelli degli analisti). */
+  /** Author ID of the comments written by this app (to tell them apart from the analysts' ones). */
   private myAuthorIds(): Set<string> {
     return new Set([this.conn.clientId, ...config.sophos.myAuthorIds].filter(Boolean));
   }
@@ -94,15 +94,15 @@ export class TenantApi implements CaseBackend {
   private graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     return this.conn.graphql<T>(this.tenantId, query, variables);
   }
-  // ---------------------------------------------------------------- entità (host / utenti)
+  // ---------------------------------------------------------------- entities (hosts / users)
   private evidenceCache = new Map<string, { at: number } & Evidence>();
-  /** Se la credenziale non ha Agent:read gli asset non sono risolvibili: non riprovare per un'ora. */
+  /** If the credential lacks Agent:read the assets cannot be resolved: do not retry for an hour. */
   private assetsDeniedUntil = 0;
 
   /**
-   * Evidenze del caso (cache 10 min): detection (titolo, severità, MITRE), host e utenti.
-   * Fonte principale: alert delle detection (Alert:read). Gli asset (Agent:read) arricchiscono con lo stato
-   * di isolamento, se il ruolo lo consente. Ogni passo è best-effort. Chiamate in sequenza.
+   * Case evidence (10 min cache): detections (title, severity, MITRE), hosts and users.
+   * Main source: detection alerts (Alert:read). Assets (Agent:read) enrich with the isolation
+   * status, if the role allows it. Every step is best-effort. Calls in sequence.
    */
   private async getEvidence(caseId: string): Promise<Evidence> {
     const hit = this.evidenceCache.get(caseId);
@@ -121,11 +121,11 @@ export class TenantApi implements CaseBackend {
         });
         parsed = parseAlerts(r.detectionRetrieveById?.alerts?.list ?? []);
       } catch {
-        /* detection non disponibili: si mostrano solo gli ID */
+        /* detections unavailable: only the IDs are shown */
       }
     }
 
-    // Stato di isolamento (e host per i casi senza detection) dagli asset, solo se il ruolo ha Agent:read
+    // Isolation status (and host for cases without detections) from the assets, only if the role has Agent:read
     const entities = [...parsed.entities];
     if (Date.now() >= this.assetsDeniedUntil) {
       try {
@@ -148,7 +148,7 @@ export class TenantApi implements CaseBackend {
   }
   private getEntities = async (caseId: string) => (await this.getEvidence(caseId)).entities;
 
-  // ---------------------------------------------------------------- dati di riferimento (cache 1 h)
+  // ---------------------------------------------------------------- reference data (1 h cache)
   private refCache: { at: number; data: Reference } | null = null;
   private statuses: { id: string; name: string; isClosed: boolean }[] = [];
 
@@ -168,10 +168,10 @@ export class TenantApi implements CaseBackend {
     return data;
   }
 
-  // ---------------------------------------------------------------- classificazione / chiusura del caso
+  // ---------------------------------------------------------------- case classification / closing
   /**
-   * Imposta il verdetto (es. False Positive) e, se `close`, chiude il caso. Una sola updateCase (semantica PATCH).
-   * Compatibilità verdetto/motivazione e requisiti di chiusura sono validati da Sophos: l'errore viene riportato all'utente.
+   * Sets the verdict (e.g. False Positive) and, if `close`, closes the case. A single updateCase (PATCH semantics).
+   * Verdict/reason compatibility and closing requirements are validated by Sophos: the error is reported to the user.
    */
   async classifyCase(caseId: string, input: ClassifyInput): Promise<void> {
     const ref = await this.getReference();
@@ -190,7 +190,7 @@ export class TenantApi implements CaseBackend {
     this.dashCache.clear();
   }
 
-  // ---------------------------------------------------------------- spiegazioni AI (cache 1 h: ~15 s l'una)
+  // ---------------------------------------------------------------- AI explanations (1 h cache: ~15 s each)
   private aiCache = new Map<string, { at: number; text: string }>();
 
   private async cachedAi(key: string, fn: () => Promise<string>): Promise<string> {
@@ -208,7 +208,7 @@ export class TenantApi implements CaseBackend {
     });
   }
 
-  /** Analizza una detection del caso (verifica che appartenga al caso: l'ID arriva dal client). */
+  /** Analyzes a detection of the case (checks that it belongs to the case: the ID comes from the client). */
   async aiDetection(caseId: string, detectionId: string): Promise<string> {
     if (!(await this.getEvidence(caseId)).detectionIds.includes(detectionId)) throw new SophosError('detection_not_in_case', 404);
     return this.cachedAi(`det:${detectionId}`, async () => {
@@ -217,13 +217,13 @@ export class TenantApi implements CaseBackend {
     });
   }
 
-  // ---------------------------------------------------------------- conteggi per la vista portafoglio
+  // ---------------------------------------------------------------- counts for the portfolio view
   private countsCache: { at: number; data: Counts } | null = null;
 
-  /** Conteggi leggeri (una aggregazione): casi aperti e da gestire. Cache 2 minuti. */
+  /** Light counts (one aggregation): open and to-handle cases. 2 minute cache. */
   async getCounts(): Promise<Counts> {
     if (this.countsCache && Date.now() - this.countsCache.at < 2 * 60_000) return this.countsCache.data;
-    await this.getReference(); // popola this.statuses
+    await this.getReference(); // populates this.statuses
     const r = await this.graphql<{ casesAggregation: { aggregation: Record<string, any>[] } }>(Q_AGGREGATION, {
       query: 'where severity >= 0 | aggregate count by primaryStatusId',
     });
@@ -252,7 +252,7 @@ export class TenantApi implements CaseBackend {
     const sinceIso = since.toISOString().replace(/\.\d+Z$/, 'Z');
     const ref = await this.getReference();
 
-    // in sequenza (il backend Sophos non regge bene le richieste parallele)
+    // in sequence (the Sophos backend does not handle parallel requests well)
     const m = await this.graphql<{ caseSummaryMetrics: any }>(Q_METRICS, {
       input: { from: sinceIso, to: to.toISOString().replace(/\.\d+Z$/, 'Z') },
     });
@@ -265,7 +265,7 @@ export class TenantApi implements CaseBackend {
     const sevRows = await agg('severity');
     const verdictRows = await agg('primaryVerdictId');
 
-    const cases = await this.getCases({}); // include host principale (cache)
+    const cases = await this.getCases({}); // includes the main host (cached)
     const inPeriod = cases.filter((c) => +new Date(c.createdAt) >= since.getTime());
 
     const sevCount = new Map<CaseSeverity, number>();
@@ -279,7 +279,7 @@ export class TenantApi implements CaseBackend {
     const stCount = new Map<CaseStatus, number>();
     for (const c of inPeriod) stCount.set(c.status, (stCount.get(c.status) ?? 0) + 1);
 
-    // andamento: un bin per giorno (<=31 gg) oppure per settimana
+    // trend: one bin per day (<=31 days) or per week
     const bin = days > 31 ? 7 : 1;
     const nBins = Math.ceil(days / bin);
     const daily = Array.from({ length: nBins }, (_, i) => {
@@ -313,8 +313,8 @@ export class TenantApi implements CaseBackend {
     return data;
   }
 
-  // ---------------------------------------------------------------- API pubbliche
-  /** Filtri e ordinamento (updatedAt desc) applicati qui: evita di dipendere dalla sintassi CQL. */
+  // ---------------------------------------------------------------- public APIs
+  /** Filters and sorting (updatedAt desc) applied here: avoids depending on the CQL syntax. */
   async getCases(filters: CaseFilters): Promise<CaseSummary[]> {
     const all: CaseSummary[] = [];
     for (let page = 1; page <= MAX_PAGES; page++) {
@@ -330,20 +330,20 @@ export class TenantApi implements CaseBackend {
       .filter((c) => !filters.severities?.length || filters.severities.includes(c.severity))
       .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
 
-    // Host principale sulle card: solo casi aperti (i risolti non lo mostrano), in sequenza, con cache.
-    // Errori ignorati: la lista deve comparire anche se l'arricchimento fallisce.
+    // Main host on the cards: open cases only (resolved ones do not show it), in sequence, cached.
+    // Errors ignored: the list must show up even if the enrichment fails.
     for (const c of result.filter((x) => x.status !== 'resolved').slice(0, MAX_ENRICHED)) {
       try {
         c.primaryEntity = (await this.getEntities(c.id)).find((e) => e.type === 'host')?.name ?? null;
       } catch {
-        /* ignora */
+        /* ignore */
       }
     }
     return result;
   }
 
   async getCaseDetails(caseId: string): Promise<CaseDetails | null> {
-    // in sequenza, non in parallelo (vedi nota in Q_CASE)
+    // in sequence, not in parallel (see the note in Q_CASE)
     const c = await this.graphql<{ case: any }>(Q_CASE, caseVariables(caseId));
     if (!c.case) return null;
     const cm = await this.graphql<{ caseComments: { comments: any[] } }>(Q_CASE_COMMENTS, commentsVariables(caseId));
@@ -351,7 +351,7 @@ export class TenantApi implements CaseBackend {
     try {
       ev = await this.getEvidence(caseId);
     } catch {
-      /* evidenze non disponibili: il dettaglio si mostra comunque */
+      /* evidence unavailable: the detail is shown anyway */
     }
     const details = normalizeDetails(c.case, cm.caseComments?.comments ?? [], this.myAuthorIds(), ev.entities);
     details.detectionIds = ev.detectionIds;
@@ -362,7 +362,7 @@ export class TenantApi implements CaseBackend {
 
   async addCaseComment(caseId: string, commentText: string): Promise<CaseComment> {
     const data = await this.graphql<{ addCaseComment: any }>(M_ADD_COMMENT, { input: { caseId, comment: commentText } });
-    // il commento l'abbiamo scritto noi: lo marchiamo come "tuo" a prescindere dall'authorId
+    // we wrote the comment ourselves: mark it as "yours" regardless of the authorId
     const mine = new Set(this.myAuthorIds()).add(String(data.addCaseComment?.authorId ?? ''));
     return normalizeComment(data.addCaseComment, mine);
   }

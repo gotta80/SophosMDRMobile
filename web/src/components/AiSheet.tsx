@@ -20,7 +20,7 @@ function Spinner({ label }: { label: string }) {
   );
 }
 
-/** Spiegazione AI di Sophos: riassunto del caso + analisi per singola detection (a richiesta, ~10-15 s l'una). */
+/** Sophos AI explanation: case summary + per-detection analysis (on demand, ~10-15 s each). */
 export default function AiSheet({ c, onClose, onUnauthorized }: { c: CaseDetails; onClose: () => void; onUnauthorized: () => void }) {
   const [summary, setSummary] = useState<State>({ status: 'loading' });
   const [det, setDet] = useState<Record<string, State>>({});

@@ -7,7 +7,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3456
-    # BIND_IP: 127.0.0.1 (default) se un reverse proxy sullo stesso host pubblica l'app in HTTPS;
-    # oppure l'IP LAN del server per raggiungerla dalla rete locale (HTTP, protetta da PIN).
+    # BIND_IP: 127.0.0.1 (default) if a reverse proxy on the same host publishes the app over HTTPS;
+    # or the server's LAN IP to reach it from the local network (HTTP, PIN-protected).
     ports:
       - "${BIND_IP:-127.0.0.1}:3456:3456"

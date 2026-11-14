@@ -1,9 +1,9 @@
 import { Fragment, ReactNode } from 'react';
 
 /**
- * Renderer Markdown minimale e sicuro (nessun HTML grezzo, nessun link cliccabile:
- * i contenuti Sophos contengono URL "defanged" e non vanno resi navigabili).
- * Supporta: titoli, grassetto, corsivo, `codice`, liste, tabelle, separatori, blocchi di codice.
+ * Minimal and safe Markdown renderer (no raw HTML, no clickable links:
+ * Sophos content contains "defanged" URLs and must not be made navigable).
+ * Supports: headings, bold, italic, `code`, lists, tables, separators, code blocks.
  */
 function inline(text: string, key = ''): ReactNode[] {
   const out: ReactNode[] = [];
@@ -42,7 +42,7 @@ export default function Markdown({ source }: { source: string }) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
 
-    // blocco di codice
+    // code block
     if (line.trim().startsWith('```')) {
       const buf: string[] = [];
       i++;
@@ -55,7 +55,7 @@ export default function Markdown({ source }: { source: string }) {
       );
       continue;
     }
-    // titoli
+    // headings
     const h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
       const lvl = h[1].length;
@@ -64,13 +64,13 @@ export default function Markdown({ source }: { source: string }) {
       i++;
       continue;
     }
-    // separatore
+    // separator
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
       blocks.push(<hr key={k++} className="my-3 border-black/10 dark:border-white/10" />);
       i++;
       continue;
     }
-    // tabella
+    // table
     if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
       const head = cells(line);
       i += 2;
@@ -92,7 +92,7 @@ export default function Markdown({ source }: { source: string }) {
       );
       continue;
     }
-    // liste
+    // lists
     if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
       const ordered = /^\s*\d/.test(line);
       const items: string[] = [];
@@ -107,7 +107,7 @@ export default function Markdown({ source }: { source: string }) {
       );
       continue;
     }
-    // paragrafo (righe consecutive)
+    // paragraph (consecutive lines)
     const buf: string[] = [];
     while (
       i < lines.length &&

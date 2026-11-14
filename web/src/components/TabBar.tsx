@@ -9,7 +9,7 @@ const Icon = ({ tab }: { tab: Tab }) =>
     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
   );
 
-/** Barra di navigazione inferiore (Dashboard / Casi), con safe area per l'home indicator. */
+/** Bottom navigation bar (Dashboard / Cases), with safe area for the home indicator. */
 export default function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   const items: { key: Tab; label: string }[] = [
     { key: 'dashboard', label: 'Dashboard' },

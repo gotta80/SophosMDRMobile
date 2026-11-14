@@ -14,7 +14,7 @@ RUN npm ci
 COPY server ./
 RUN npm run build
 
-# --- 3) runtime: unico container, il backend serve anche il frontend ---
+# --- 3) runtime: single container, the backend also serves the frontend ---
 FROM node:22-alpine
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3456 STATIC_DIR=/app/public
 WORKDIR /app

@@ -34,7 +34,7 @@ export interface CaseDetails extends CaseSummary {
   summary: string;
   keyFindings?: string;
   detectionIds?: string[];
-  /** Cronologia (solo casi classic: l'API REST non ha commenti, ma ha il registro attività) */
+  /** Timeline (classic cases only: the REST API has no comments, but it has the activity log) */
   activities?: Activity[];
   entities: Entity[];
   detections: Detection[];

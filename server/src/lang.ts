@@ -5,14 +5,14 @@ export type Lang = 'it' | 'en';
 
 const store = new AsyncLocalStorage<Lang>();
 
-/** Lingua della richiesta corrente (header X-App-Lang; default it). */
+/** Language of the current request (X-App-Lang header; default it). */
 export const currentLang = (): Lang => store.getStore() ?? 'it';
 
-/** Middleware: imposta la lingua per tutta la catena asincrona della richiesta. */
+/** Middleware: sets the language for the whole async chain of the request. */
 export function langMiddleware(req: Request, _res: Response, next: NextFunction) {
   const h = String(req.headers['x-app-lang'] ?? '').toLowerCase();
   store.run(h === 'en' ? 'en' : 'it', next);
 }
 
-/** Sceglie il testo nella lingua corrente. */
+/** Picks the text in the current language. */
 export const pick = <T>(it: T, en: T): T => (currentLang() === 'en' ? en : it);

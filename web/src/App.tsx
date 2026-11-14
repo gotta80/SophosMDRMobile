@@ -8,8 +8,8 @@ import TabBar, { Tab } from './components/TabBar';
 import { TenantProvider } from './lib/tenant';
 
 /**
- * Routing a hash: '' = dashboard (home), '#/cases' = lista, '#/case/<id>' = dettaglio.
- * I casi si aprono con pushState: lo swipe "indietro" di iOS e il tasto Indietro tornano alla schermata di partenza.
+ * Hash routing: '' = dashboard (home), '#/cases' = list, '#/case/<id>' = detail.
+ * Cases open with pushState: the iOS "back" swipe and the Back button return to the starting screen.
  */
 type Route = { name: 'dashboard' } | { name: 'cases' } | { name: 'case'; id: string };
 
@@ -45,12 +45,12 @@ export default function App() {
     };
   }, [check]);
 
-  /** Naviga in avanti (nuova voce di cronologia, segnata come interna). */
+  /** Navigates forward (new history entry, marked as internal). */
   const push = (hash: string) => {
     history.pushState({ inApp: true }, '', hash || location.pathname);
     setRoute(parseHash());
   };
-  /** Cambio scheda: sostituisce la voce corrente (nessuna cronologia accumulata). */
+  /** Tab change: replaces the current entry (no history accumulated). */
   const replace = (hash: string) => {
     history.replaceState(history.state, '', hash || location.pathname);
     setRoute(parseHash());
@@ -61,14 +61,14 @@ export default function App() {
     try {
       sessionStorage.setItem('filter', filter);
     } catch {
-      /* ignora */
+      /* ignore */
     }
     replace('#/cases');
   };
 
   const goBack = () => {
-    if (history.state?.inApp) history.back(); // popstate aggiorna la route
-    else replace('#/cases'); // aperto direttamente sul caso (ricarica / Home screen)
+    if (history.state?.inApp) history.back(); // popstate updates the route
+    else replace('#/cases'); // opened directly on the case (reload / Home screen)
   };
 
   const unauthorized = useCallback(() => setAuth('out'), []);

@@ -1,20 +1,20 @@
 import { currentLang } from '../lang';
 /**
- * Query / mutation GraphQL per Sophos Cases GraphQL (schema cases-v2) + normalizzatori.
- * Fonte: https://developer.sophos.com/graphql/cases-v2/  (schema: /assets/graphql/cases-v2.graphql)
- * Endpoint: POST https://api.taegis.sophos.com/graphql  (header Authorization + X-Tenant-ID)
+ * GraphQL queries / mutations for Sophos Cases GraphQL (cases-v2 schema) + normalizers.
+ * Source: https://developer.sophos.com/graphql/cases-v2/  (schema: /assets/graphql/cases-v2.graphql)
+ * Endpoint: POST https://api.taegis.sophos.com/graphql  (Authorization + X-Tenant-ID headers)
  *
- * Verificato dal documento SDL: root fields cases/case/caseComments, mutation addCaseComment,
- * campi di `Case` (severity è Int!: 2 Info, 4 Low, 6 Medium, 8 High, 10 Critical).
+ * Verified from the SDL document: root fields cases/case/caseComments, mutation addCaseComment,
+ * fields of `Case` (severity is Int!: 2 Info, 4 Low, 6 Medium, 8 High, 10 Critical).
  *
- * NON verificato (da controllare con una chiamata reale):
- *  - sintassi dei filtri CQL (qui NON usata: filtriamo/ordiniamo lato server Node);
- *  - nomi di primaryStatus/secondaryStatus (sono per-tenant: la mappatura è in toStatus());
- *  - `CaseArguments { id }` per la query `case`;
- *  - risposta di `caseComments` (campo `comments`);
- *  - come identificare un analista MDR: lo schema non ha un flag -> vedi SOPHOS_MY_AUTHOR_IDS.
- * Lo schema NON espone MITRE, hosts/utenti né detection come liste sul tipo Case (solo conteggi;
- * le liste stanno in `caseEvidence`, i cui sotto-campi non sono ancora mappati qui: vedi Q_CASE_EVIDENCE_TODO).
+ * NOT verified (to check with a real call):
+ *  - CQL filter syntax (NOT used here: we filter/sort on the Node server side);
+ *  - primaryStatus/secondaryStatus names (they are per-tenant: the mapping is in toStatus());
+ *  - `CaseArguments { id }` for the `case` query;
+ *  - response of `caseComments` (`comments` field);
+ *  - how to identify an MDR analyst: the schema has no flag -> see SOPHOS_MY_AUTHOR_IDS.
+ * The schema does NOT expose MITRE, hosts/users or detections as lists on the Case type (counts only;
+ * the lists live in `caseEvidence`, whose sub-fields are not mapped here yet: see Q_CASE_EVIDENCE_TODO).
  */
 import type {
   CaseComment,
@@ -51,7 +51,7 @@ const CASE_FIELDS = `
   assetsCount
 `;
 
-/** Lista casi (offset pagination, max 100 per pagina). Default server: createdAt desc, riordinato lato Node su updatedAt. */
+/** Case list (offset pagination, max 100 per page). Server default: createdAt desc, re-sorted on the Node side by updatedAt. */
 export const Q_CASES = /* GraphQL */ `
   query ListCases($arguments: CasesArguments!) {
     cases(arguments: $arguments) {
@@ -63,8 +63,8 @@ export const Q_CASES = /* GraphQL */ `
 `;
 
 /**
- * Dettaglio e commenti in DUE richieste separate: con due root field insieme il backend Sophos
- * risponde a intermittenza "conn busy" / "driver: bad connection".
+ * Detail and comments in TWO separate requests: with two root fields together the Sophos backend
+ * intermittently answers "conn busy" / "driver: bad connection".
  */
 export const Q_CASE = /* GraphQL */ `
   query GetCase($arguments: CaseArguments!) {
@@ -81,7 +81,7 @@ export const Q_CASE_COMMENTS = /* GraphQL */ `
   }
 `;
 
-/* ---- Dati di riferimento (stati / verdetti): sono per-tenant, letti a runtime e messi in cache ---- */
+/* ---- Reference data (statuses / verdicts): per-tenant, read at runtime and cached ---- */
 export const Q_REFERENCE_STATUSES = /* GraphQL */ `
   query { casePrimaryStatuses(arguments: {}) { primaryStatuses { id name title isClosed } } }
 `;
@@ -92,7 +92,7 @@ export const Q_REFERENCE_SECONDARY_VERDICTS = /* GraphQL */ `
   query { caseSecondaryVerdicts(arguments: {}) { secondaryVerdicts { id name title } } }
 `;
 
-/* ---- Spiegazioni AI (verificate: ~12-16 s; output SOLO in inglese, followUpPrompt non cambia la lingua) ---- */
+/* ---- AI explanations (verified: ~12-16 s; output ONLY in English, followUpPrompt does not change the language) ---- */
 export const Q_AI_CASE_SUMMARY = /* GraphQL */ `
   query AiCaseSummary($caseId: ID!) {
     generativeAICaseSummary(caseId: $caseId, outputFormat: MARKDOWN) { summary }
@@ -104,7 +104,7 @@ export const Q_AI_DETECTION = /* GraphQL */ `
   }
 `;
 
-/* ---- Metriche (verificate) ---- */
+/* ---- Metrics (verified) ---- */
 export const Q_METRICS = /* GraphQL */ `
   query Metrics($input: CaseSummaryMetricsInput!) {
     caseSummaryMetrics(input: $input) {
@@ -113,14 +113,14 @@ export const Q_METRICS = /* GraphQL */ `
     }
   }
 `;
-/** Sintassi CQL verificata: "where <cond> | aggregate count by <campo>" (NON supporta raggruppamenti per data). */
+/** Verified CQL syntax: "where <cond> | aggregate count by <field>" (does NOT support grouping by date). */
 export const Q_AGGREGATION = /* GraphQL */ `
   query Agg($query: String!) { casesAggregation(arguments: { query: $query }) { aggregation } }
 `;
 
 /**
- * Aggiornamento del caso (classificazione/chiusura). `updateCase` ha semantica PATCH (UpdateCaseInput).
- * Chiudere = primaryStatusId dello stato "closed" + primaryVerdictId (+ secondaryVerdictId, closeReason).
+ * Case update (classification/closing). `updateCase` has PATCH semantics (UpdateCaseInput).
+ * Closing = primaryStatusId of the "closed" status + primaryVerdictId (+ secondaryVerdictId, closeReason).
  */
 export const M_UPDATE_CASE = /* GraphQL */ `
   mutation UpdateCase($input: UpdateCaseInput!) {
@@ -135,7 +135,7 @@ export const M_UPDATE_CASE = /* GraphQL */ `
   }
 `;
 
-/** Aggiunge un commento (verificato dalla pagina addCaseComment). */
+/** Adds a comment (verified from the addCaseComment page). */
 export const M_ADD_COMMENT = /* GraphQL */ `
   mutation AddCaseComment($input: AddCaseComment!) {
     addCaseComment(input: $input) {
@@ -145,10 +145,10 @@ export const M_ADD_COMMENT = /* GraphQL */ `
 `;
 
 /**
- * Entità del caso, in due passi (verificati sul tenant reale):
- *  1. caseEvidence -> assetsEvidence { assetId }   (solo ID)
+ * Case entities, in two steps (verified on a real tenant):
+ *  1. caseEvidence -> assetsEvidence { assetId }   (IDs only)
  *  2. assetsV2(filter: { where: { id } })          -> hostnames, users, isolationStatus
- * Nota: assetId corrisponde ad AssetV2.id (NON a hostId).
+ * Note: assetId matches AssetV2.id (NOT hostId).
  */
 export const Q_CASE_EVIDENCE = /* GraphQL */ `
   query GetCaseEvidence($arguments: CaseEvidenceArguments!) {
@@ -170,8 +170,8 @@ export const Q_ASSET = /* GraphQL */ `
 `;
 
 /**
- * Detection del caso via alert (permesso Alert:read, disponibile anche senza Agent:read).
- * Fornisce titolo, severità (0..1), descrizione, tecniche MITRE e le entità (host, utente, IP...).
+ * Case detections via alerts (Alert:read permission, available even without Agent:read).
+ * Provides title, severity (0..1), description, MITRE techniques and entities (host, user, IP...).
  */
 export const Q_DETECTIONS = /* GraphQL */ `
   query GetDetections($ids: [String!]) {
@@ -193,7 +193,7 @@ export const Q_DETECTIONS = /* GraphQL */ `
 export const evidenceVariables = (id: string) => ({ arguments: { id } });
 export const assetVariables = (assetId: string) => ({ where: { id: assetId } });
 
-// ---------------------------------------------------------------- variabili
+// ---------------------------------------------------------------- variables
 
 export const casesVariables = (page: number) => ({
   arguments: { pagination: { offset: { page, perPage: 100 } } },
@@ -205,12 +205,12 @@ export const commentsVariables = (id: string) => ({
   arguments: { caseId: id, orderBy: 'ASCENDING', perPage: 100 },
 });
 
-// ---------------------------------------------------------------- normalizzatori
+// ---------------------------------------------------------------- normalizers
 
 type Raw = Record<string, any>;
 const norm = (v: unknown) => String(v ?? '').replace(/[^a-zA-Z]/g, '').toLowerCase();
 
-/** Severità numerica Sophos -> livelli app. */
+/** Sophos numeric severity -> app levels. */
 export function toSeverity(v: unknown): CaseSeverity {
   const n = Number(v);
   if (n >= 10) return 'critical';
@@ -220,9 +220,9 @@ export function toSeverity(v: unknown): CaseSeverity {
 }
 
 /**
- * Stati primari del tenant (verificati con casePrimaryStatuses):
+ * Primary statuses of the tenant (verified with casePrimaryStatuses):
  * new, awaiting_sophos_assignment, in_progress, customer_action_required, on_hold, closed.
- * "awaiting_sophos_assignment" = in attesa di un analista Sophos -> per te è ancora "Nuovo", NON azione richiesta.
+ * "awaiting_sophos_assignment" = waiting for a Sophos analyst -> for you it is still "New", NOT action required.
  */
 const STATUS_BY_NAME: Record<string, CaseStatus> = {
   new: 'new',
@@ -236,7 +236,7 @@ export function toStatus(c: Raw): CaseStatus {
   if (c.primaryStatus?.isClosed || c.closedAt) return 'resolved';
   const byName = STATUS_BY_NAME[String(c.primaryStatus?.name ?? '').toLowerCase()];
   if (byName) return byName;
-  // stato personalizzato non previsto: euristica sul nome
+  // unexpected custom status: heuristic on the name
   const n = norm(c.primaryStatus?.name);
   if (n.includes('customer') && n.includes('action')) return 'actionRequired';
   if (n.includes('hold')) return 'onHold';
@@ -256,7 +256,7 @@ export function normalizeSummary(c: Raw): CaseSummary {
     status: toStatus(c),
     type: String(c.type?.title ?? c.type?.name ?? 'case'),
     managedBy: managed === 'provider' ? 'Sophos MDR' : managed === 'customer' ? 'Cliente' : String(c.managedBy ?? 'Sophos MDR'),
-    primaryEntity: null, // valorizzato dopo la risoluzione degli asset (vedi sophosClient.getCases)
+    primaryEntity: null, // set after resolving the assets (vedi sophosClient.getCases)
     verdict: toRef(c.primaryVerdict),
     secondaryVerdict: toRef(c.secondaryVerdict),
     closeReason: c.closeReason ? String(c.closeReason) : undefined,
@@ -265,7 +265,7 @@ export function normalizeSummary(c: Raw): CaseSummary {
   };
 }
 
-/** Identifica i commenti "tuoi": authorId presente in SOPHOS_MY_AUTHOR_IDS (o uguale al client id API). */
+/** Identifies "your" comments: authorId present in SOPHOS_MY_AUTHOR_IDS (or equal to the API client id). */
 export function normalizeComment(c: Raw, myAuthorIds: Set<string>): CaseComment {
   const authorId = String(c.authorId ?? c.authorSubject?.id ?? '');
   const mine = myAuthorIds.has(authorId);
@@ -281,8 +281,8 @@ export function normalizeComment(c: Raw, myAuthorIds: Set<string>): CaseComment 
 }
 
 /**
- * keyFindings.content è Markdown (documentType MARKDOWN). Per RICH_TEXT (JSON) si estraggono
- * solo i campi "text": formato non verificato, meglio un testo semplice che nulla.
+ * keyFindings.content is Markdown (documentType MARKDOWN). For RICH_TEXT (JSON) we extract
+ * only the "text" fields: format not verified, better plain text than nothing.
  */
 export function keyFindingsText(kf: Raw | null | undefined): string | undefined {
   if (!kf?.content) return undefined;
@@ -301,18 +301,18 @@ export function keyFindingsText(kf: Raw | null | undefined): string | undefined 
   }
 }
 
-/** Severità alert Sophos (0..1) -> livelli app. */
+/** Sophos alert severity (0..1) -> app levels. */
 const scoreToSeverity = (s: unknown): CaseSeverity => {
   const n = Number(s);
   return n >= 0.9 ? 'critical' : n >= 0.7 ? 'high' : n >= 0.4 ? 'medium' : 'low';
 };
 
-/** Alert -> detection + MITRE + entità (host, utenti) del caso. Nessun nome host di destinazione: solo computerName/sensorHostName. */
+/** Alert -> detection + MITRE + entities (hosts, users) of the case. No destination host name: only computerName/sensorHostName. */
 export function parseAlerts(alerts: Raw[]): { detections: Detection[]; mitre: MitreTechnique[]; entities: Entity[] } {
   const detections: Detection[] = [];
   const mitre = new Map<string, MitreTechnique>();
   const hosts = new Map<string, Entity>();
-  const users = new Map<string, string>(); // chiave: username senza dominio, minuscolo
+  const users = new Map<string, string>(); // key: username without domain, lowercase
 
   for (const a of alerts) {
     detections.push({
@@ -347,7 +347,7 @@ export function parseAlerts(alerts: Raw[]): { detections: Detection[]; mitre: Mi
   };
 }
 
-/** AssetV2 -> entità: un host (con stato isolamento) + un'entità per ogni utente. */
+/** AssetV2 -> entities: one host (with isolation status) + one entity per user. */
 export function assetToEntities(a: Raw): Entity[] {
   const out: Entity[] = [];
   const host = a.hostnames?.[0]?.hostname;

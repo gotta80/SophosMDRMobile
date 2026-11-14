@@ -30,8 +30,8 @@ function Changes({ a }: { a: Activity }) {
 }
 
 /**
- * Cronologia di un caso Sophos Central (classic): l'API non ha i commenti, ma il registro attività contiene
- * le note degli analisti (mostrate come messaggi) e tutti i cambi di stato, assegnazioni, azioni e file.
+ * Timeline of a Sophos Central (classic) case: the API has no comments, but the activity log contains
+ * the analysts' notes (shown as messages) and all status changes, assignments, actions and files.
  */
 export default function Timeline({ activities }: { activities: Activity[] }) {
   const [all, setAll] = useState(false);

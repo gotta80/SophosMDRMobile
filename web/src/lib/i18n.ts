@@ -8,14 +8,14 @@ function detect(): Lang {
   try {
     const q = new URLSearchParams(location.search).get('lang');
     if (q === 'it' || q === 'en') {
-      try { localStorage.setItem(KEY, q); } catch { /* ignora */ }
+      try { localStorage.setItem(KEY, q); } catch { /* ignore */ }
       return q;
     }
-  } catch { /* ignora */ }
+  } catch { /* ignore */ }
   try {
     const s = localStorage.getItem(KEY);
     if (s === 'it' || s === 'en') return s;
-  } catch { /* ignora */ }
+  } catch { /* ignore */ }
   return typeof navigator !== 'undefined' && /^it/i.test(navigator.language || '') ? 'it' : 'en';
 }
 
@@ -25,18 +25,18 @@ if (typeof document !== 'undefined') document.documentElement.lang = lang;
 export const getLang = (): Lang => lang;
 export const locale = () => (lang === 'it' ? 'it-IT' : 'en-GB');
 
-/** Cambia lingua (salvata sul dispositivo) e ricarica la pagina. */
+/** Changes the language (saved on the device) and reloads the page. */
 export function setLang(l: Lang) {
-  try { localStorage.setItem(KEY, l); } catch { /* ignora */ }
+  try { localStorage.setItem(KEY, l); } catch { /* ignore */ }
   const u = new URL(location.href);
   u.searchParams.delete('lang');
   location.replace(u.toString());
 }
 
-/** Dizionario: chiave = testo italiano, valore = inglese (lib/en.ts). */
+/** Dictionary: key = Italian text, value = English (lib/en.ts). */
 const EN: Record<string, string> = EN_DICT;
 
-/** Traduce il testo italiano (sorgente). Supporta i segnaposto {nome}. */
+/** Translates the Italian (source) text. Supports {name} placeholders. */
 export function t(it: string, vars?: Record<string, string | number>): string {
   let s = it;
   if (lang === 'en') {

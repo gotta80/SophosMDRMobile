@@ -22,7 +22,7 @@ export const KindChip = ({ kind }: { kind?: TenantInfo['kind'] }) =>
     </span>
   ) : null;
 
-/** Pulsante con il cliente corrente: apre l'elenco dei clienti (con conteggi) per cambiarlo. Nascosto con un solo cliente. */
+/** Button with the current customer: opens the customer list (with counts) to switch. Hidden with a single customer. */
 export default function TenantPicker({ onUnauthorized }: { onUnauthorized: () => void }) {
   const { tenants, current } = useTenant();
   const [open, setOpen] = useState(false);
@@ -67,7 +67,7 @@ function TenantSheet({ onClose, onUnauthorized }: { onClose: () => void; onUnaut
   const rows = tenants.filter((t) => !q || t.name.toLowerCase().includes(q));
   const ok = rows.filter((t) => t.status === 'ok');
   const na = rows.filter((t) => t.status !== 'ok');
-  // prima chi ha casi da gestire
+  // first those with cases to handle
   ok.sort((a, b) => (byId.get(b.id)?.counts?.actionRequired ?? 0) - (byId.get(a.id)?.counts?.actionRequired ?? 0));
 
   return (

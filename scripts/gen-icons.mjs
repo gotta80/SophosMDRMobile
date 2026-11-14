@@ -1,4 +1,4 @@
-// Genera le icone PNG (scudo bianco su fondo blu) senza dipendenze: node scripts/gen-icons.mjs
+// Generates the PNG icons (white shield on blue background) with no dependencies: node scripts/gen-icons.mjs
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -26,16 +26,16 @@ const chunk = (type, data) => {
   return Buffer.concat([len, td, c]);
 };
 
-// Forma dello scudo in coordinate normalizzate [-1,1]: restituisce la semi-larghezza a quota y
+// Shield shape in normalized coordinates [-1,1]: returns the half-width at height y
 const shieldHalfWidth = (y) => {
   if (y < -0.62 || y > 0.68) return -1;
-  if (y < 0.05) return 0.5; // parte alta dritta
-  return 0.5 * Math.sqrt(1 - ((y - 0.05) / 0.63) ** 2) ** 0.9; // punta arrotondata
+  if (y < 0.05) return 0.5; // straight top part
+  return 0.5 * Math.sqrt(1 - ((y - 0.05) / 0.63) ** 2) ** 0.9; // rounded tip
 };
 
 function png(size) {
   const raw = Buffer.alloc((size * 4 + 1) * size);
-  const SS = 3; // supersampling per bordi lisci
+  const SS = 3; // supersampling for smooth edges
   for (let y = 0; y < size; y++) {
     raw[y * (size * 4 + 1)] = 0;
     for (let x = 0; x < size; x++) {

@@ -2,7 +2,7 @@ import { ReactNode, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from '../lib/i18n';
 
-/** Bottom sheet in stile iOS: sfondo oscurato, scorrimento interno, rispetta la safe area. */
+/** iOS-style bottom sheet: dimmed backdrop, internal scrolling, respects the safe area. */
 export default function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -15,7 +15,7 @@ export default function Sheet({ title, onClose, children }: { title: string; onC
     };
   }, [onClose]);
 
-  // Portale nel body: un antenato con backdrop-filter (es. l'intestazione sfocata) intrappolerebbe l'elemento `fixed`.
+  // Portal into the body: an ancestor with backdrop-filter (e.g. the blurred header) would trap the `fixed` element.
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 animate-[fade_0.2s_ease-out] bg-black/40" onClick={onClose} />

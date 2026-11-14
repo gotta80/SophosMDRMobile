@@ -1,10 +1,10 @@
-/** Dati mock realistici per MOCK_MODE=true. Stato in memoria: i commenti aggiunti restano fino al riavvio. */
+/** Realistic mock data for MOCK_MODE=true. In-memory state: added comments stay until restart. */
 import { currentLang } from '../lang';
 import type { CaseComment, CaseDetails, CaseFilters, CaseSummary, ClassifyInput, DashboardData, Reference } from '../types';
 
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const A = (name = 'Sophos MDR Analyst'): CaseComment['author'] => ({ name, role: 'analyst' });
-const ME: CaseComment['author'] = { name: 'Tu', role: 'customer' }; // il client mostra 'Tu'/'You' in base al ruolo
+const ME: CaseComment['author'] = { name: 'Tu', role: 'customer' }; // the client shows 'Tu'/'You' depending on the role
 
 const cases: CaseDetails[] = [
   {
@@ -115,7 +115,7 @@ const cases: CaseDetails[] = [
   },
 ];
 
-/** Traduzione inglese dei contenuti demo (per id caso / id commento). Gli ID e i dati tecnici restano uguali. */
+/** English translation of the demo content (by case id / comment id). IDs and technical data stay the same. */
 const EN_CASES: Record<string, { title: string; summary: string; keyFindings?: string }> = {
   '7b0e2c1a-4f5d-4e2a-9a31-0c8f1d2b6a01': {
     title: 'Possible ransomware: mass file encryption on file server',
@@ -150,7 +150,7 @@ const EN_COMMENTS: Record<string, string> = {
   c6: 'I will check with the infrastructure team and get back to you. @sophos',
   c7: 'Threat neutralized. We are closing the case.',
 };
-/** Applica la lingua corrente (default italiano: i dati originali). */
+/** Applies the current language (default Italian: the original data). */
 function loc<T extends CaseSummary | CaseDetails>(c: T): T {
   if (currentLang() !== 'en') return c;
   const o = EN_CASES[c.id];
@@ -180,7 +180,7 @@ export const mockStore = {
     const comment: CaseComment = { id: `m${Date.now()}`, author: ME, createdAt: new Date().toISOString(), body: text };
     c.comments.push(comment);
     c.updatedAt = comment.createdAt;
-    // Se il cliente risponde a un caso "actionRequired", lo riportiamo in investigazione.
+    // If the customer replies to an "actionRequired" case, we move it back to investigating.
     if (c.status === 'actionRequired') c.status = 'investigating';
     return comment;
   },

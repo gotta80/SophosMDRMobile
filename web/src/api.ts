@@ -16,7 +16,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Cliente selezionato: inviato a ogni richiesta nell'header X-App-Tenant. */
+/** Selected customer: sent with every request in the X-App-Tenant header. */
 let currentTenant = '';
 export const setApiTenant = (id: string) => {
   currentTenant = id;

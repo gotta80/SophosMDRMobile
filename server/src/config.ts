@@ -9,20 +9,20 @@ const isProd = process.env.NODE_ENV === 'production';
 export const config = {
   isProd,
   port: Number(process.env.PORT || 3456),
-  /** In Docker usare 0.0.0.0 (la porta è comunque pubblicata solo su 127.0.0.1 dal compose). */
+  /** In Docker use 0.0.0.0 (the port is anyway published only on 127.0.0.1 by the compose file). */
   host: process.env.HOST || '127.0.0.1',
   mock: bool(process.env.MOCK_MODE, false),
 
-  /** Dietro un reverse proxy: legge X-Forwarded-* (req.secure, req.ip). */
+  /** Behind a reverse proxy: reads X-Forwarded-* (req.secure, req.ip). */
   trustProxy: bool(process.env.TRUST_PROXY, false),
 
   accessPin: process.env.APP_ACCESS_PIN || '',
   sessionSecret: process.env.SESSION_SECRET || '',
   sessionDays: Number(process.env.SESSION_DAYS || 30),
   /**
-   * Cookie "Secure": 'auto' (default) = solo se la richiesta è HTTPS (req.secure, che con TRUST_PROXY
-   * legge X-Forwarded-Proto dal proxy). Così funziona sia da LAN in HTTP sia dalla tailnet in HTTPS.
-   * COOKIE_SECURE=true/false forza il valore.
+   * Cookie "Secure": 'auto' (default) = only if the request is HTTPS (req.secure, which with TRUST_PROXY
+   * reads X-Forwarded-Proto from the proxy). This way it works both from the LAN over HTTP and through the HTTPS proxy.
+   * COOKIE_SECURE=true/false forces the value.
    */
   cookieSecure: ((v) => (v === undefined || v.trim() === '' || v.trim() === 'auto' ? 'auto' : bool(v)))(
     process.env.COOKIE_SECURE,
@@ -32,9 +32,9 @@ export const config = {
 
   sophos: {
     /**
-     * Connessioni (credenziali API): SOPHOS_CLIENT_ID/SECRET, poi SOPHOS_CLIENT_ID_2/SECRET_2, ... fino a _6.
-     * Ognuna può essere di tenant (un cliente) o partner/organization (elenca i clienti): il registro dei tenant
-     * le unisce e, per ogni cliente, usa la prima connessione che riesce a leggerne i casi.
+     * Connections (API credentials): SOPHOS_CLIENT_ID/SECRET, then SOPHOS_CLIENT_ID_2/SECRET_2, ... up to _6.
+     * Each can be a tenant (one customer) or a partner/organization (lists the customers): the tenant registry
+     * merges them and, for each customer, uses the first connection that can read its cases.
      */
     connections: [1, 2, 3, 4, 5, 6]
       .map((i) => {
@@ -44,11 +44,11 @@ export const config = {
       .filter((c) => c.clientId && c.clientSecret),
     tokenUrl: process.env.SOPHOS_TOKEN_URL || 'https://id.sophos.com/api/v2/oauth2/token',
     whoamiUrl: process.env.SOPHOS_WHOAMI_URL || 'https://api.central.sophos.com/whoami/v1',
-    /** Obbligatorio solo se le credenziali sono Partner/Organization: tenant da interrogare. */
+    /** Required only if the credentials are Partner/Organization: tenant to query. */
     tenantId: process.env.SOPHOS_TENANT_ID || '',
-    /** Endpoint Cases GraphQL (unico per tutti i tenant, da developer.sophos.com). */
+    /** Cases GraphQL endpoint (the same for all tenants, from developer.sophos.com). */
     graphqlUrl: process.env.SOPHOS_GRAPHQL_URL || 'https://api.taegis.sophos.com/graphql',
-    /** ID autore (authorId) da considerare "tuoi" nella chat, separati da virgola. Vedi README. */
+    /** Author IDs (authorId) to treat as "yours" in the chat, comma-separated. See README. */
     myAuthorIds: (process.env.SOPHOS_MY_AUTHOR_IDS || '').split(',').map((s) => s.trim()).filter(Boolean),
   },
 };

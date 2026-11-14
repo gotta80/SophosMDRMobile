@@ -33,7 +33,7 @@ if (errors.length) {
   process.exit(1);
 }
 
-/** Registro dei clienti: reale (Sophos) o demo. */
+/** Customer registry: real (Sophos) or demo. */
 const reg = config.mock ? mockRegistry : registry;
 reg.start();
 
@@ -41,7 +41,7 @@ const app = express();
 app.disable('x-powered-by');
 if (config.trustProxy) app.set('trust proxy', true);
 
-// Header di sicurezza
+// Security headers
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -56,7 +56,7 @@ app.use((_req, res, next) => {
 app.use(langMiddleware);
 app.use(express.json({ limit: '32kb' }));
 
-// Anti-CSRF aggiuntivo (oltre a SameSite=Lax): le scritture devono essere JSON.
+// Additional anti-CSRF (besides SameSite=Lax): writes must be JSON.
 app.use('/api', (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'HEAD' && !req.is('application/json')) {
@@ -69,13 +69,13 @@ const wrap =
   (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) =>
     fn(req, res).catch(next);
 
-/** Cliente scelto dall'app (header X-App-Tenant); senza header, il cliente di default. */
+/** Customer selected by the app (X-App-Tenant header); without the header, the default customer. */
 async function backendFor(req: Request): Promise<CaseBackend | null> {
   const id = String(req.headers['x-app-tenant'] ?? '').trim();
   return id ? reg.get(id) : reg.first();
 }
 
-/** Risponde 404/405 se il cliente non è disponibile o non supporta la funzione richiesta. */
+/** Answers 404/405 if the customer is unavailable or does not support the requested feature. */
 async function tenantRoute(
   req: Request,
   res: Response,
@@ -112,18 +112,18 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-// ---- clienti (tenant)
+// ---- customers (tenants)
 app.get('/api/tenants', requireAuth, (_req, res) => {
   res.json({ tenants: reg.list(), probing: reg.probing, lastRefresh: reg.lastRefresh });
 });
 
-/** Rilancia la verifica dei clienti in background (es. dopo una migrazione a Fusion o una nuova delega). */
+/** Re-runs the customer check in the background (e.g. after a migration to Fusion or a new delegation). */
 app.post('/api/tenants/refresh', requireAuth, (_req, res) => {
   void reg.refresh();
   res.json({ ok: true });
 });
 
-/** Vista portafoglio: conteggi (aperti / da gestire) per ogni cliente accessibile. */
+/** Portfolio view: counts (open / to handle) for every accessible customer. */
 app.get(
   '/api/portfolio',
   requireAuth,
@@ -132,7 +132,7 @@ app.get(
   }),
 );
 
-// ---- casi del cliente selezionato
+// ---- cases of the selected customer
 const parseList = <T extends string>(raw: unknown, allowed: T[]): T[] | undefined => {
   if (typeof raw !== 'string' || !raw) return undefined;
   const items = raw.split(',').filter((x): x is T => (allowed as string[]).includes(x));
@@ -194,7 +194,7 @@ app.get(
   wrap((req, res) => tenantRoute(req, res, 'classify', async (api) => res.json({ reference: await api.getReference() }))),
 );
 
-/** Classifica (verdetto) e opzionalmente chiude il caso. Scrive su Sophos: richiede conferma lato UI. */
+/** Classifies (verdict) and optionally closes the case. Writes to Sophos: requires confirmation on the UI side. */
 app.post(
   '/api/cases/:id/classify',
   requireAuth,
@@ -234,13 +234,13 @@ app.post(
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
 
-// ------------------------------------------------------------------ frontend statico (PWA)
+// ------------------------------------------------------------------ static frontend (PWA)
 if (fs.existsSync(path.join(config.staticDir, 'index.html'))) {
   app.use(
     express.static(config.staticDir, {
       index: false,
       setHeaders(res, file) {
-        // sw.js, manifest e index non vanno in cache aggressiva; gli asset hashed sì.
+        // sw.js, manifest and index must not be cached aggressively; hashed assets can.
         if (/[\\/]assets[\\/]/.test(file)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         else res.setHeader('Cache-Control', 'no-cache');
       },
@@ -254,11 +254,11 @@ if (fs.existsSync(path.join(config.staticDir, 'index.html'))) {
   console.warn(`Frontend non trovato in ${config.staticDir} (modalità solo API / dev con Vite).`);
 }
 
-// ------------------------------------------------------------------ errori
+// ------------------------------------------------------------------ errors
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const status = err instanceof SophosError ? err.status : 500;
   console.error('[error]', err instanceof Error ? err.message : err);
-  // Messaggio generico al client: niente dettagli interni.
+  // Generic message to the client: no internal details.
   res.status(status >= 400 && status < 600 ? status : 500).json({
     error: err instanceof SophosError ? err.message : 'internal_error',
   });

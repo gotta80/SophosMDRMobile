@@ -1,6 +1,6 @@
 import { getLang, setLang } from '../lib/i18n';
 
-/** Selettore lingua EN | IT: la lingua attiva è evidenziata, un tap passa all'altra. */
+/** EN | IT language selector: the active language is highlighted, a tap switches to the other one. */
 export default function LangToggle({ className = '' }: { className?: string }) {
   const cur = getLang();
   const next = cur === 'it' ? 'en' : 'it';

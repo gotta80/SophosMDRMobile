@@ -2,7 +2,7 @@ import type { CaseSummary } from '../types';
 import { SEVERITY_BAR, VERDICT_CHIP, timeAgo, verdictLabel } from '../lib/format';
 import { SeverityBadge, StatusText } from './Badges';
 
-/** Card compatta di un caso (lista e dashboard). */
+/** Compact case card (list and dashboard). */
 export default function CaseCard({ c, onOpen }: { c: CaseSummary; onOpen: (id: string) => void }) {
   return (
     <button

@@ -1,13 +1,13 @@
 /**
- * Registro dei tenant (clienti) raggiungibili.
+ * Registry of the reachable tenants (customers).
  *
- * Unisce le connessioni configurate (credenziali di tenant e/o partner). Per ogni cliente verifica, con ogni
- * connessione che lo vede, DOVE vivono i suoi casi:
- *   - Fusion (GraphQL `cases`)            -> funzioni complete (commenti, classificazione, AI, metriche);
- *   - Sophos Central classic (REST /cases/v1) -> sola lettura.
- * Regola di scelta: Fusion se ha casi; altrimenti classic se ha casi; altrimenti Fusion (se risponde), poi classic.
- * I clienti non accessibili (non migrati, senza delega al partner...) restano in elenco come "non disponibili" e
- * vengono riprovati ogni 30 minuti: appena diventano accessibili compaiono da soli.
+ * Merges the configured connections (tenant and/or partner credentials). For each customer it checks, with every
+ * connection that sees it, WHERE its cases live:
+ *   - Fusion (GraphQL `cases`)            -> full features (comments, classification, AI, metrics);
+ *   - Sophos Central classic (REST /cases/v1) -> read-only.
+ * Selection rule: Fusion if it has cases; otherwise classic if it has cases; otherwise Fusion (if it answers), then classic.
+ * Inaccessible customers (not migrated, no partner delegation...) stay in the list as "unavailable" and
+ * are retried every 30 minutes: as soon as they become accessible they show up on their own.
  */
 import { config } from '../config';
 import type { Capabilities, TenantKind } from '../types';
@@ -39,12 +39,12 @@ interface Candidate {
 interface Entry extends TenantInfo {
   api?: CaseBackend;
   probedAt: number;
-  /** connessioni che vedono questo cliente, con l'host regionale per il REST classic */
+  /** connections that see this customer, with the regional host for classic REST */
   sources: { conn: Connection; apiHost?: string }[];
 }
 
 const REFRESH_MS = 30 * 60_000;
-const ON_DEMAND_MS = 5 * 60_000; // non ri-sondare un cliente non disponibile più spesso di così
+const ON_DEMAND_MS = 5 * 60_000; // do not re-probe an unavailable customer more often than this
 const FUSION_PROBE = '{ cases(arguments: { pagination: { offset: { page: 1, perPage: 1 } } }) { totalCount } }';
 
 function classify(e: unknown): Reason {
@@ -59,7 +59,7 @@ export class Registry {
   private tenants = new Map<string, Entry>();
   private refreshing: Promise<void> | null = null;
   private resolveReady!: () => void;
-  /** Si risolve quando la prima connessione ha elencato i suoi tenant (basta per rispondere alle prime richieste). */
+  /** Resolves when the first connection has listed its tenants (enough to answer the first requests). */
   readonly ready = new Promise<void>((res) => (this.resolveReady = res));
   lastRefresh = 0;
 
@@ -72,7 +72,7 @@ export class Registry {
     return this.refreshing !== null;
   }
 
-  /** Elenco per l'interfaccia: prima i clienti accessibili (con più casi in alto), poi gli altri. */
+  /** List for the UI: accessible customers first (most cases on top), then the others. */
   list(): TenantInfo[] {
     const rank = { ok: 0, unknown: 1, unavailable: 2 } as const;
     return [...this.tenants.values()]
@@ -84,7 +84,7 @@ export class Registry {
     await Promise.race([this.ready, new Promise((r) => setTimeout(r, 20_000))]);
   }
 
-  /** Backend del cliente se accessibile; sonda al momento se non ancora verificato. */
+  /** Backend of the customer if accessible; probes on the spot if not yet checked. */
   async get(id: string): Promise<CaseBackend | null> {
     await this.waitReady();
     const e = this.tenants.get(id);
@@ -93,14 +93,14 @@ export class Registry {
     return e.status === 'ok' ? (e.api ?? null) : null;
   }
 
-  /** Cliente di default (richieste senza cliente esplicito): il primo accessibile con casi, o il primo accessibile. */
+  /** Default customer (requests without an explicit customer): the first accessible one with cases, or the first accessible one. */
   async first(): Promise<CaseBackend | null> {
     await this.waitReady();
     const ok = this.list().filter((t) => t.status === 'ok');
     return ok.length ? ((await this.get(ok[0].id)) ?? null) : null;
   }
 
-  /** Conteggi per la vista portafoglio, in sequenza (il backend Sophos non regge bene le richieste parallele). */
+  /** Counts for the portfolio view, in sequence (the Sophos backend does not handle parallel requests well). */
   async portfolio(): Promise<(TenantInfo & { counts?: Counts })[]> {
     const out: (TenantInfo & { counts?: Counts })[] = [];
     for (const t of this.list()) {
@@ -126,7 +126,7 @@ export class Registry {
     return this.refreshing;
   }
 
-  // ---------------------------------------------------------------- interno
+  // ---------------------------------------------------------------- internal
   private async candidates(conn: Connection): Promise<Candidate[]> {
     const who = await conn.whoami();
     if (who.idType === 'tenant') {
@@ -135,7 +135,7 @@ export class Registry {
     return conn.listTenants();
   }
 
-  /** Nome del cliente dalla Taegis (best effort: le credenziali di tenant non lo espongono altrove). */
+  /** Customer name from Taegis (best effort: tenant credentials do not expose it elsewhere). */
   private async tenantName(conn: Connection, id: string): Promise<string | undefined> {
     try {
       const r = await conn.graphql<{ tenants: { tenants: { name: string }[] } }>(
@@ -150,14 +150,14 @@ export class Registry {
   }
 
   private async doRefresh(): Promise<void> {
-    // 1) elenco di tutti i clienti da tutte le connessioni
+    // 1) list of all customers from all connections
     for (const conn of this.conns) {
       try {
         for (const c of await this.candidates(conn)) {
           const e =
             this.tenants.get(c.id) ??
             ({ id: c.id, name: `Cliente ${c.id.slice(0, 8)}`, status: 'unknown', probedAt: 0, sources: [] } as Entry);
-          // il nome del partner ha la precedenza su un nome ricavato altrove
+          // the partner's name takes precedence over a name obtained elsewhere
           if (c.name && (conn.index === 1 || e.name.startsWith('Cliente '))) e.name = c.name;
           else if (c.name && !e.name) e.name = c.name;
           e.region = c.region ?? e.region;
@@ -171,14 +171,14 @@ export class Registry {
     }
     this.resolveReady();
 
-    // 2) verifica dove vivono i casi di ciascun cliente (sequenziale, con una breve pausa)
+    // 2) check where each customer's cases live (sequential, with a short pause)
     for (const e of [...this.tenants.values()]) {
       await this.probe(e);
       await new Promise((r) => setTimeout(r, 150));
     }
   }
 
-  /** Verifica Fusion e classic con ogni connessione che vede il cliente e sceglie il backend migliore. */
+  /** Checks Fusion and classic with every connection that sees the customer and picks the best backend. */
   private async probe(e: Entry): Promise<void> {
     type Found = { kind: TenantKind; count: number; make: () => CaseBackend };
     const found: Found[] = [];
@@ -201,7 +201,7 @@ export class Registry {
       }
     }
 
-    // scelta: Fusion con casi > classic con casi > Fusion > classic
+    // choice: Fusion with cases > classic with cases > Fusion > classic
     const best =
       found.find((f) => f.kind === 'fusion' && f.count > 0) ??
       found.find((f) => f.kind === 'classic' && f.count > 0) ??
@@ -209,7 +209,7 @@ export class Registry {
       found.find((f) => f.kind === 'classic');
 
     if (!best) {
-      // errori transitori su un cliente che funzionava: si mantiene lo stato precedente
+      // transient errors on a customer that was working: keep the previous state
       if (e.status === 'ok' && reason === 'error') {
         e.probedAt = Date.now();
         return;

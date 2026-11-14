@@ -1,4 +1,4 @@
-/** Modello dati interno (normalizzato) esposto al frontend. */
+/** Internal (normalized) data model exposed to the frontend. */
 
 export type CaseStatus = 'new' | 'investigating' | 'actionRequired' | 'onHold' | 'resolved';
 export type CaseSeverity = 'critical' | 'high' | 'medium' | 'low';
@@ -10,7 +10,7 @@ export interface Entity {
   id: string;
   type: 'host' | 'user' | 'other';
   name: string;
-  /** es. stato di isolamento dell'host: "ISOLATED" / "NOT ISOLATED" */
+  /** e.g. host isolation status: "ISOLATED" / "NOT ISOLATED" */
   detail?: string;
 }
 
@@ -30,7 +30,7 @@ export interface CaseSummary {
   severity: CaseSeverity;
   status: CaseStatus;
   type: string; // activeThreat, managedRisk, ...
-  managedBy: string; // es. "Sophos MDR"
+  managedBy: string; // e.g. "Sophos MDR"
   primaryEntity: string | null;
   createdAt: string; // ISO
   updatedAt: string; // ISO
@@ -58,11 +58,11 @@ export interface CaseComment {
 
 export interface CaseDetails extends CaseSummary {
   summary: string;
-  /** Markdown "key findings" scritto dagli analisti (solo nel dettaglio) */
+  /** Markdown "key findings" written by the analysts (detail only) */
   keyFindings?: string;
-  /** ID delle detection collegate (evidenze del caso): servono per l'analisi AI */
+  /** IDs of the linked detections (case evidence): needed for the AI analysis */
   detectionIds?: string[];
-  /** Cronologia (solo casi classic: l'API REST non ha commenti, ma ha il registro attività) */
+  /** Timeline (classic cases only: the REST API has no comments, but it has the activity log) */
   activities?: Activity[];
   entities: Entity[];
   detections: Detection[];
@@ -75,10 +75,10 @@ export interface CaseFilters {
   severities?: CaseSeverity[];
 }
 
-/** Dati di riferimento del tenant per la classificazione dei casi. */
+/** Tenant reference data for case classification. */
 export interface Reference {
-  verdicts: Ref[]; // verdetti primari (False Positive, True Positive - Benign/Malicious, Inconclusive)
-  secondaryVerdicts: Ref[]; // motivazioni
+  verdicts: Ref[]; // primary verdicts (False Positive, True Positive - Benign/Malicious, Inconclusive)
+  secondaryVerdicts: Ref[]; // reasons
   closedStatusId: string | null;
 }
 
@@ -95,7 +95,7 @@ export interface DashboardData {
   kpi: {
     totalCases: number;
     actionRequiredCases: number;
-    effortHours: number | null; // null sui casi classic (non disponibile)
+    effortHours: number | null; // null on classic cases (not available)
     escalatedCases: number;
     weekendCases: number;
     openCases: number;
@@ -104,10 +104,10 @@ export interface DashboardData {
   byVerdict: { title: string; name: string; count: number }[];
   byStatus: { key: CaseStatus; count: number }[];
   daily: { date: string; count: number }[];
-  attention: CaseSummary[]; // casi che richiedono azione
+  attention: CaseSummary[]; // cases that require action
 }
 
-/** Cosa può fare l'app su un cliente: dipende da dove vivono i suoi casi (Fusion o Central classic). */
+/** What the app can do on a customer: depends on where its cases live (Fusion or Central classic). */
 export interface Capabilities {
   comments: boolean;
   classify: boolean;
@@ -115,7 +115,7 @@ export interface Capabilities {
 }
 
 export type TenantKind = 'fusion' | 'classic';
-/** Voce della cronologia di un caso classic (dal registro attività di Sophos Central). */
+/** Timeline entry of a classic case (from the Sophos Central activity log). */
 export interface ActivityChange {
   label: string;
   from?: string;
@@ -127,9 +127,9 @@ export interface Activity {
   at: string; // ISO
   who: string;
   kind: 'note' | 'message' | 'status' | 'action' | 'file' | 'created' | 'change' | 'ai' | 'other';
-  /** testo della nota/messaggio, o riga di descrizione */
+  /** note/message text, or description line */
   text?: string;
   changes?: ActivityChange[];
-  /** voce "di contorno" (code interne, tag, collaboratori...): nascosta di default */
+  /** "minor" entry (internal queues, tags, collaborators...): hidden by default */
   minor?: boolean;
 }

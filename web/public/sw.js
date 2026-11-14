@@ -1,4 +1,4 @@
-/* Service Worker base: cache dell'app shell, mai delle API (dati sensibili). */
+/* Basic Service Worker: caches the app shell, never the API (sensitive data). */
 const CACHE = 'mdr-shell-v1';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
 
@@ -20,12 +20,12 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
 
-  // Navigazioni: network-first, fallback alla shell in cache (avvio offline)
+  // Navigations: network-first, falling back to the cached shell (offline start)
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).catch(() => caches.match('/')));
     return;
   }
-  // Asset statici: stale-while-revalidate
+  // Static assets: stale-while-revalidate
   e.respondWith(
     caches.match(req).then((hit) => {
       const net = fetch(req)

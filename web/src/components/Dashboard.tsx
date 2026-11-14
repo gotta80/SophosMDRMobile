@@ -63,7 +63,7 @@ function BarRow({ label, count, max, color, total }: { label: string; count: num
   );
 }
 
-/** Andamento: un istogramma SVG (un bin per giorno, o per settimana a 90 giorni). */
+/** Trend: an SVG histogram (one bin per day, or per week at 90 days). */
 function Trend({ daily, weekly }: { daily: DashboardData['daily']; weekly: boolean }) {
   const max = Math.max(1, ...daily.map((d) => d.count));
   const W = 300, H = 90, gap = daily.length > 40 ? 1 : 2;

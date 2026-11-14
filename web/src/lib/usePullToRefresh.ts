@@ -3,7 +3,7 @@ import { RefObject, useEffect, useRef, useState } from 'react';
 const THRESHOLD = 70;
 const MAX_PULL = 110;
 
-/** Pull-to-refresh per un contenitore scrollabile (touch). Ritorna la distanza di trascinamento. */
+/** Pull-to-refresh for a scrollable container (touch). Returns the drag distance. */
 export function usePullToRefresh(ref: RefObject<HTMLElement>, onRefresh: () => Promise<unknown>) {
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,7 +27,7 @@ export function usePullToRefresh(ref: RefObject<HTMLElement>, onRefresh: () => P
         setPull(0);
         return;
       }
-      dist = Math.min(MAX_PULL, dy * 0.5); // resistenza elastica
+      dist = Math.min(MAX_PULL, dy * 0.5); // elastic resistance
       if (e.cancelable) e.preventDefault();
       setPull(dist);
     };
