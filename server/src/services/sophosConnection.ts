@@ -106,6 +106,12 @@ export class Connection {
     return (await res.json()) as T;
   }
 
+  /** GET on the global Central API (e.g. /licenses/v1/licenses) for a customer, with its X-Tenant-ID. */
+  async globalRest<T>(tenantId: string, path: string): Promise<T> {
+    const host = (await this.whoami()).apiHosts.global || 'https://api.central.sophos.com';
+    return this.rest<T>(host, tenantId, path);
+  }
+
   /** Regional host (dataRegion) of the tenant credential, from whoami. */
   async ownApiHost(): Promise<string | undefined> {
     return (await this.whoami()).apiHosts.dataRegion;

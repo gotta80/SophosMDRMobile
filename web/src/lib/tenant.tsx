@@ -8,6 +8,8 @@ interface Ctx {
   probing: boolean;
   current: TenantInfo;
   caps: Capabilities;
+  /** the selected customer has no case access: only the Licenses tab is shown */
+  licensesOnly: boolean;
   select: (id: string) => void;
   recheck: () => Promise<void>;
 }
@@ -117,7 +119,7 @@ export function TenantProvider({ onUnauthorized, children }: { onUnauthorized: (
     );
 
   return (
-    <TenantCtx.Provider value={{ tenants: tenants!, probing, current, caps: current.capabilities ?? FULL, select, recheck }}>
+    <TenantCtx.Provider value={{ tenants: tenants!, probing, current, caps: current.capabilities ?? FULL, licensesOnly: current.mode === 'licenses', select, recheck }}>
       <div key={current.id} className="contents">{children}</div>
     </TenantCtx.Provider>
   );

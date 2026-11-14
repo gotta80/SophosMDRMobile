@@ -10,7 +10,8 @@ Features:
 - **AI explanation** (Sophos AI, English only): case summary and per-detection analysis.
 - **Case classification**: verdict (false positive, benign/malicious true positive, inconclusive), reason, note and closing, with explicit confirmation.
 - Chat with the analysts and comment posting (`@sophos` shortcut), PIN login, dark mode, demo mode with fake data.
-- **Multi-tenant** (Partner accounts): customer picker with a portfolio view (cases to handle per customer). Customers already on Fusion get every feature; customers still on **classic Sophos Central** are **read-only** (cases, detections, MITRE, entities and activity timeline, but no comments, classification or AI). Unreachable customers (not delegated / not on Fusion) are listed with the reason and re-checked every 30 minutes or on demand.
+- **Multi-tenant** (Partner accounts): customer picker with a portfolio view (cases to handle per customer). Customers already on Fusion get every feature; customers still on **classic Sophos Central** are **read-only** (cases, detections, MITRE, entities and activity timeline, but no comments, classification or AI). Unreachable customers (not delegated / not on Fusion) are listed with the reason and re-checked on demand (Check customers again).
+- **MDR level and licenses:** every customer shows an **MDR** / **MDR Plus** tag, and a **Licenses** tab lists all of its licenses (quantity, usage, expiry). Customers without case access or without MDR are still selectable and open only the Licenses tab.
 - **Bilingual UI** (English / Italian): follows the browser language, switchable in the app or with `?lang=en` / `?lang=it`.
 
 ## Screenshots
@@ -31,9 +32,31 @@ Demo mode (`MOCK_MODE=true`): all data is made up.
   <tr>
     <td align="center"><img src="docs/screenshots/07-clienti.jpg" width="220" alt="Customer picker"><br><sub>Customer picker</sub></td>
     <td align="center"><img src="docs/screenshots/08-classic-timeline.jpg" width="220" alt="Classic case timeline"><br><sub>Classic case timeline (read-only)</sub></td>
+    <td align="center"><img src="docs/screenshots/09-licenses.jpg" width="220" alt="Licenses"><br><sub>Licenses tab</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/10-licenses-only.jpg" width="220" alt="Licenses-only customer"><br><sub>Customer without MDR (licenses only)</sub></td>
+    <td></td>
     <td></td>
   </tr>
 </table>
+
+## MDR level and licenses
+
+Every customer shows an **MDR level** tag next to FUSION / CLASSIC in the customer picker and on the dashboard (tap the tag to open the **Licenses** tab, the third tab of the bottom bar). The Licenses tab lists all the customer's licenses (MDR products first) with type, quantity, usage, start/end dates and an expiry warning (expired / within 90 days).
+
+- Source: the Sophos Central **Licensing API** (`GET https://api.central.sophos.com/licenses/v1/licenses` with `X-Tenant-ID`), which works for both Fusion and classic customers. For Fusion customers the GraphQL `tenantLicenses` query is the fallback (no dates or quantities). Read-only; licenses are cached in memory for 1 hour.
+- Level rule, from the product codes of the non-expired licenses:
+
+| Product code contains | Level shown |
+|---|---|
+| `MTR-ADV` (e.g. `CIXAMTR-ADV`, `CIXAMTR-ADV-MSP`) | **MDR Plus** |
+| `MTR-STD` (e.g. `CIXAMTR-STD-MSP`) | **MDR** |
+| any other MDR/MTR product | **MDR** (product name shown in the Licenses tab) |
+| none | no tag |
+
+- **Licenses-only customers:** a customer whose cases cannot be read (not on Fusion / no delegation), or that has no cases and no MDR, is still listed (section "No MDR / licenses only") if its licenses can be read. Selecting it opens only the Licenses tab: Dashboard and Cases are hidden and no case API is called.
+- Customers are probed at startup and only when you press "Check customers again" (there is no periodic background check).
 
 ## Quick start (Docker)
 
@@ -49,7 +72,7 @@ Safari → Share → **Add to Home Screen**: the app opens full screen.
 
 ## Sophos credentials
 
-Create an **API credential** in Sophos Central/Fusion and set in `.env`: `MOCK_MODE=false`, `SOPHOS_CLIENT_ID`, `SOPHOS_CLIENT_SECRET` (and `SOPHOS_TENANT_ID` only for Partner/Organization credentials).
+Create an **API credential** in Sophos Central/Fusion and set in `.env`: `MOCK_MODE=false`, `SOPHOS_CLIENT_ID`, `SOPHOS_CLIENT_SECRET`.
 
 **Multiple customers:** you can define up to 6 credentials (`SOPHOS_CLIENT_ID_2` / `SOPHOS_CLIENT_SECRET_2` …), for example a Partner credential from the Partner Dashboard. At startup the app lists the tenants visible to each credential (`whoami` and `/partner/v1/tenants`), tries Fusion first and then the classic Sophos Central Cases API for each tenant, and uses the connection that returns cases. Nothing is written to disk: in-memory caches only.
 
@@ -90,7 +113,6 @@ Production build without Docker: `npm run build && NODE_ENV=production npm start
 | `MOCK_MODE` | `true` = fake data, in-memory comments |
 | `SOPHOS_CLIENT_ID` / `SOPHOS_CLIENT_SECRET` | Sophos API credentials |
 | `SOPHOS_CLIENT_ID_2` / `SOPHOS_CLIENT_SECRET_2` … `_6` | Additional credentials (e.g. Partner, multi-customer) |
-| `SOPHOS_TENANT_ID` | Only for Partner/Organization credentials |
 | `SOPHOS_MY_AUTHOR_IDS` | authorIds to show as "yours" in the chat |
 | `TRUST_PROXY` | `true` behind an HTTPS reverse proxy |
 | `COOKIE_SECURE` | Default `auto` (Secure if the request is HTTPS) |

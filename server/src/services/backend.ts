@@ -8,12 +8,14 @@ import type {
   DashboardData,
   Reference,
   TenantKind,
+  TenantLicenses,
 } from '../types';
 import type { Counts } from './sophosClient';
 
 /** Operations on a customer's cases, independent of where they live (Fusion GraphQL or Central classic REST). */
 export interface CaseBackend {
-  readonly kind: TenantKind;
+  /** 'licenses' = customer without case access: only the licenses can be read */
+  readonly kind: TenantKind | 'licenses';
   readonly capabilities: Capabilities;
   getCases(filters: CaseFilters): Promise<CaseSummary[]>;
   getCaseDetails(caseId: string): Promise<CaseDetails | null>;
@@ -24,4 +26,6 @@ export interface CaseBackend {
   aiDetection(caseId: string, detectionId: string): Promise<string>;
   getDashboard(days: number): Promise<DashboardData>;
   getCounts(): Promise<Counts>;
+  /** Licenses and MDR level of the customer (1 h cache; `force` re-reads). */
+  getLicenses(force?: boolean): Promise<TenantLicenses>;
 }

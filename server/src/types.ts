@@ -133,3 +133,34 @@ export interface Activity {
   /** "minor" entry (internal queues, tags, collaborators...): hidden by default */
   minor?: boolean;
 }
+
+/** MDR service level of a customer, derived from its licenses. */
+export type MdrLevel = 'mdr' | 'mdr_plus' | 'none';
+
+export interface LicenseItem {
+  id: string;
+  code: string;
+  name: string;
+  type: 'term' | 'usage' | 'other';
+  /** MDR/MTR product (shown first in the UI) */
+  mdr: boolean;
+  /** term license already past its end date */
+  expired: boolean;
+  quantity?: number;
+  unlimited?: boolean;
+  perpetual?: boolean;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  /** current usage (units in use) when reported */
+  usage?: number;
+  /** licensed features (Fusion fallback only) */
+  features?: string[];
+}
+
+export interface TenantLicenses {
+  mdr: MdrLevel;
+  licenses: LicenseItem[];
+  /** where the list came from: REST Licensing API or Fusion GraphQL fallback */
+  source: 'rest' | 'graphql';
+  fetchedAt: string; // ISO
+}

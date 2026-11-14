@@ -13,7 +13,7 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   mock: bool(process.env.MOCK_MODE, false),
 
-  /** Behind a reverse proxy: reads X-Forwarded-* (req.secure, req.ip). */
+  /** Behind a reverse proxy: legge X-Forwarded-* (req.secure, req.ip). */
   trustProxy: bool(process.env.TRUST_PROXY, false),
 
   accessPin: process.env.APP_ACCESS_PIN || '',
@@ -44,8 +44,6 @@ export const config = {
       .filter((c) => c.clientId && c.clientSecret),
     tokenUrl: process.env.SOPHOS_TOKEN_URL || 'https://id.sophos.com/api/v2/oauth2/token',
     whoamiUrl: process.env.SOPHOS_WHOAMI_URL || 'https://api.central.sophos.com/whoami/v1',
-    /** Required only if the credentials are Partner/Organization: tenant to query. */
-    tenantId: process.env.SOPHOS_TENANT_ID || '',
     /** Cases GraphQL endpoint (the same for all tenants, from developer.sophos.com). */
     graphqlUrl: process.env.SOPHOS_GRAPHQL_URL || 'https://api.taegis.sophos.com/graphql',
     /** Author IDs (authorId) to treat as "yours" in the chat, comma-separated. See README. */

@@ -85,6 +85,34 @@ export interface TenantInfo {
   capabilities?: Capabilities;
   reason?: 'access_denied' | 'no_service' | 'error';
   caseCount?: number;
+  mdr?: MdrLevel;
+  /** 'licenses' = no case access: only the Licenses tab is available */
+  mode?: 'full' | 'licenses';
+}
+
+export type MdrLevel = 'mdr' | 'mdr_plus' | 'none';
+
+export interface LicenseItem {
+  id: string;
+  code: string;
+  name: string;
+  type: 'term' | 'usage' | 'other';
+  mdr: boolean;
+  expired: boolean;
+  quantity?: number;
+  unlimited?: boolean;
+  perpetual?: boolean;
+  startDate?: string;
+  endDate?: string;
+  usage?: number;
+  features?: string[];
+}
+
+export interface TenantLicenses {
+  mdr: MdrLevel;
+  licenses: LicenseItem[];
+  source: 'rest' | 'graphql';
+  fetchedAt: string;
 }
 
 export interface PortfolioItem extends TenantInfo {

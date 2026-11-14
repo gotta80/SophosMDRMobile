@@ -8,6 +8,7 @@ import { currentLang } from '../lang';
  */
 import { config } from '../config';
 import { Connection, SophosError } from './sophosConnection';
+import { LicenseStore, fetchLicenses } from './licenses';
 import type { CaseBackend } from './backend';
 import type {
   CaseComment,
@@ -85,6 +86,11 @@ export class TenantApi implements CaseBackend {
     private readonly conn: Connection,
     readonly tenantId: string,
   ) {}
+
+  private licenses = new LicenseStore(() => fetchLicenses(this.conn, this.tenantId, true));
+  getLicenses(force = false) {
+    return this.licenses.get(force);
+  }
 
   /** Author ID of the comments written by this app (to tell them apart from the analysts' ones). */
   private myAuthorIds(): Set<string> {

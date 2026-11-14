@@ -23,6 +23,7 @@ import type {
 } from '../types';
 import type { CaseBackend } from './backend';
 import { Connection, SophosError } from './sophosConnection';
+import { LicenseStore, fetchLicenses } from './licenses';
 import type { Counts } from './sophosClient';
 
 type Raw = Record<string, any>;
@@ -68,6 +69,11 @@ export class ClassicApi implements CaseBackend {
     readonly tenantId: string,
     private readonly apiHost: string,
   ) {}
+
+  private licenses = new LicenseStore(() => fetchLicenses(this.conn, this.tenantId, false));
+  getLicenses(force = false) {
+    return this.licenses.get(force);
+  }
 
   private get<T>(path: string) {
     return this.conn.rest<T>(this.apiHost, this.tenantId, `/cases/v1${path}`);

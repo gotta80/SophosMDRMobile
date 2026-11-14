@@ -7,13 +7,18 @@
  *   - Sophos Central classic (REST /cases/v1) -> read-only.
  * Selection rule: Fusion if it has cases; otherwise classic if it has cases; otherwise Fusion (if it answers), then classic.
  * Inaccessible customers (not migrated, no partner delegation...) stay in the list as "unavailable" and
- * are retried every 30 minutes: as soon as they become accessible they show up on their own.
+ * re-checked only at startup and when the user presses "Check customers again" (POST /api/tenants/refresh).
+ * The MDR level of every customer (from its licenses, read with the REST Licensing API) is read during the check.
+ * Customers without case access (or without cases and without MDR) whose licenses can be read become "licenses only"
+ * (status ok, mode 'licenses'): the app opens only their Licenses tab.
  */
 import { config } from '../config';
-import type { Capabilities, TenantKind } from '../types';
+import type { Capabilities, MdrLevel, TenantKind } from '../types';
 import type { CaseBackend } from './backend';
 import { ClassicApi } from './classicApi';
 import { Connection, SophosError } from './sophosConnection';
+import { LicensesOnlyApi } from './licensesOnlyApi';
+import { build, parseRestLicenses } from './licenses';
 import { Counts, TenantApi } from './sophosClient';
 
 export type Reason = 'access_denied' | 'no_service' | 'error';
@@ -27,6 +32,10 @@ export interface TenantInfo {
   capabilities?: Capabilities;
   reason?: Reason;
   caseCount?: number;
+  /** MDR level from the licenses; undefined when unknown (licenses not readable) */
+  mdr?: MdrLevel;
+  /** 'full' = cases + features; 'licenses' = no case access, only the Licenses tab (status stays 'ok') */
+  mode?: 'full' | 'licenses';
 }
 
 interface Candidate {
@@ -43,7 +52,6 @@ interface Entry extends TenantInfo {
   sources: { conn: Connection; apiHost?: string }[];
 }
 
-const REFRESH_MS = 30 * 60_000;
 const ON_DEMAND_MS = 5 * 60_000; // do not re-probe an unavailable customer more often than this
 const FUSION_PROBE = '{ cases(arguments: { pagination: { offset: { page: 1, perPage: 1 } } }) { totalCount } }';
 
@@ -65,7 +73,6 @@ export class Registry {
 
   start() {
     void this.refresh();
-    setInterval(() => void this.refresh(), REFRESH_MS).unref();
   }
 
   get probing() {
@@ -75,9 +82,10 @@ export class Registry {
   /** List for the UI: accessible customers first (most cases on top), then the others. */
   list(): TenantInfo[] {
     const rank = { ok: 0, unknown: 1, unavailable: 2 } as const;
+    const lic = (t: TenantInfo) => (t.mode === 'licenses' ? 1 : 0); // full customers before licenses-only ones
     return [...this.tenants.values()]
       .map(({ api: _a, probedAt: _p, sources: _s, ...t }) => t)
-      .sort((a, b) => rank[a.status] - rank[b.status] || (b.caseCount ?? 0) - (a.caseCount ?? 0) || a.name.localeCompare(b.name));
+      .sort((a, b) => rank[a.status] - rank[b.status] || lic(a) - lic(b) || (b.caseCount ?? 0) - (a.caseCount ?? 0) || a.name.localeCompare(b.name));
   }
 
   private async waitReady() {
@@ -89,14 +97,17 @@ export class Registry {
     await this.waitReady();
     const e = this.tenants.get(id);
     if (!e) return null;
-    if (e.status !== 'ok' && Date.now() - e.probedAt > ON_DEMAND_MS) await this.probe(e);
+    if (e.status !== 'ok' && Date.now() - e.probedAt > ON_DEMAND_MS) {
+      await this.probe(e);
+      await this.settle([e]);
+    }
     return e.status === 'ok' ? (e.api ?? null) : null;
   }
 
   /** Default customer (requests without an explicit customer): the first accessible one with cases, or the first accessible one. */
   async first(): Promise<CaseBackend | null> {
     await this.waitReady();
-    const ok = this.list().filter((t) => t.status === 'ok');
+    const ok = this.list().filter((t) => t.status === 'ok' && t.mode !== 'licenses');
     return ok.length ? ((await this.get(ok[0].id)) ?? null) : null;
   }
 
@@ -104,7 +115,7 @@ export class Registry {
   async portfolio(): Promise<(TenantInfo & { counts?: Counts })[]> {
     const out: (TenantInfo & { counts?: Counts })[] = [];
     for (const t of this.list()) {
-      const api = t.status === 'ok' ? this.tenants.get(t.id)?.api : undefined;
+      const api = t.status === 'ok' && t.mode !== 'licenses' ? this.tenants.get(t.id)?.api : undefined;
       if (!api) {
         out.push(t);
         continue;
@@ -176,6 +187,65 @@ export class Registry {
       await this.probe(e);
       await new Promise((r) => setTimeout(r, 150));
     }
+
+    // 3) licenses / MDR level of every customer (small concurrency, errors tolerated)
+    await this.settle([...this.tenants.values()]);
+  }
+
+  /**
+   * Reads the licenses of the customers (4 at a time) and sets the MDR level and the mode: a customer whose cases are
+   * not accessible, or with no cases and no MDR, becomes "licenses only" if its licenses can be read.
+   */
+  private async settle(entries: Entry[]): Promise<void> {
+    const queue = [...entries];
+    const worker = async () => {
+      for (let e = queue.shift(); e; e = queue.shift()) {
+        try {
+          await this.settleOne(e);
+        } catch (err) {
+          console.error(`[registry] licenze ${e.name}:`, err instanceof Error ? err.message : err);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+  }
+
+  private async settleOne(e: Entry): Promise<void> {
+    if (e.status === 'ok' && e.mode !== 'licenses' && e.api) {
+      // accessible customer: licenses through its own backend
+      try {
+        e.mdr = (await e.api.getLicenses(true)).mdr;
+      } catch {
+        /* licenses unavailable: keep the previous value */
+      }
+      if (e.mdr === 'none' && (e.caseCount ?? 0) === 0) this.toLicensesOnly(e);
+      else e.mode = 'full';
+      return;
+    }
+    if (e.status === 'ok') return; // already licenses-only (transient case probe error): keep
+    // no case access: try the licenses with every connection that sees the customer
+    for (const { conn } of e.sources) {
+      try {
+        const lic = build(parseRestLicenses(await conn.globalRest<unknown>(e.id, '/licenses/v1/licenses')), 'rest');
+        e.mdr = lic.mdr;
+        e.api = new LicensesOnlyApi(async (force) => {
+          const j = await conn.globalRest<unknown>(e.id, '/licenses/v1/licenses');
+          void force; // no cache here: the list is small and read only on demand
+          return build(parseRestLicenses(j), 'rest');
+        });
+        Object.assign(e, { status: 'ok', mode: 'licenses', reason: undefined, kind: undefined, capabilities: e.api.capabilities, caseCount: 0 });
+        return;
+      } catch {
+        /* try the next connection; if none works the customer stays unavailable with its reason */
+      }
+    }
+  }
+
+  /** Accessible customer without cases and without MDR: only the licenses are shown. */
+  private toLicensesOnly(e: Entry) {
+    const full = e.api!;
+    e.api = new LicensesOnlyApi((force) => full.getLicenses(force));
+    Object.assign(e, { mode: 'licenses', kind: undefined, capabilities: e.api.capabilities, caseCount: 0 });
   }
 
   /** Checks Fusion and classic with every connection that sees the customer and picks the best backend. */
@@ -214,11 +284,11 @@ export class Registry {
         e.probedAt = Date.now();
         return;
       }
-      Object.assign(e, { status: 'unavailable', reason, api: undefined, kind: undefined, capabilities: undefined, caseCount: undefined, probedAt: Date.now() });
+      Object.assign(e, { status: 'unavailable', reason, api: undefined, kind: undefined, capabilities: undefined, caseCount: undefined, mdr: undefined, mode: undefined, probedAt: Date.now() });
       return;
     }
     const api = best.make();
-    Object.assign(e, { status: 'ok', reason: undefined, api, kind: best.kind, capabilities: api.capabilities, caseCount: best.count, probedAt: Date.now() });
+    Object.assign(e, { status: 'ok', mode: 'full', reason: undefined, api, kind: best.kind, capabilities: api.capabilities, caseCount: best.count, probedAt: Date.now() });
   }
 }
 

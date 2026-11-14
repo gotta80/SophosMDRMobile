@@ -79,12 +79,14 @@ async function backendFor(req: Request): Promise<CaseBackend | null> {
 async function tenantRoute(
   req: Request,
   res: Response,
-  need: keyof Capabilities | null,
+  need: keyof Capabilities | 'licenses' | null,
   fn: (api: CaseBackend) => Promise<unknown>,
 ) {
   const api = await backendFor(req);
   if (!api) return res.status(404).json({ error: 'tenant_unavailable' });
-  if (need && !api.capabilities[need]) return res.status(405).json({ error: 'not_supported_classic' });
+  // customers without case access (licenses only) answer only the licenses route
+  if (api.kind === 'licenses' && need !== 'licenses') return res.status(405).json({ error: 'licenses_only' });
+  if (need && need !== 'licenses' && !api.capabilities[need]) return res.status(405).json({ error: 'not_supported_classic' });
   return fn(api);
 }
 
@@ -122,6 +124,15 @@ app.post('/api/tenants/refresh', requireAuth, (_req, res) => {
   void reg.refresh();
   res.json({ ok: true });
 });
+
+/** Licenses and MDR level of the selected customer (`?refresh=1` bypasses the cache). */
+app.get(
+  '/api/licenses',
+  requireAuth,
+  wrap((req, res) =>
+    tenantRoute(req, res, 'licenses', async (api) => res.json(await api.getLicenses(req.query.refresh === '1'))),
+  ),
+);
 
 /** Portfolio view: counts (open / to handle) for every accessible customer. */
 app.get(

@@ -4,20 +4,78 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CaseList from './components/CaseList';
 import CaseDetail from './components/CaseDetail';
+import Licenses from './components/Licenses';
 import TabBar, { Tab } from './components/TabBar';
-import { TenantProvider } from './lib/tenant';
+import { TenantProvider, useTenant } from './lib/tenant';
 
 /**
  * Hash routing: '' = dashboard (home), '#/cases' = list, '#/case/<id>' = detail.
  * Cases open with pushState: the iOS "back" swipe and the Back button return to the starting screen.
  */
-type Route = { name: 'dashboard' } | { name: 'cases' } | { name: 'case'; id: string };
+type Route = { name: 'dashboard' } | { name: 'cases' } | { name: 'licenses' } | { name: 'case'; id: string };
 
 const parseHash = (): Route => {
   const m = location.hash.match(/^#\/case\/(.+)$/);
   if (m) return { name: 'case', id: decodeURIComponent(m[1]) };
+  if (location.hash === '#/licenses') return { name: 'licenses' };
   return location.hash === '#/cases' ? { name: 'cases' } : { name: 'dashboard' };
 };
+
+interface ShellProps {
+  route: Route;
+  mock: boolean;
+  push: (hash: string) => void;
+  replace: (hash: string) => void;
+  onUnauthorized: () => void;
+  onLogout: () => void;
+}
+
+/** Screens of the selected customer. Customers without case access (licenses only) only get the Licenses tab. */
+function Shell({ route: routeIn, mock, push, replace, onUnauthorized, onLogout }: ShellProps) {
+  const { licensesOnly } = useTenant();
+
+  // licenses-only customer: force the Licenses route (Dashboard / Cases never mount, so no case API calls)
+  useEffect(() => {
+    if (licensesOnly && location.hash !== '#/licenses') replace('#/licenses');
+  }, [licensesOnly, routeIn]); // eslint-disable-line react-hooks/exhaustive-deps
+  const route: Route = licensesOnly ? { name: 'licenses' } : routeIn;
+
+  const openCase = (id: string) => push(`#/case/${encodeURIComponent(id)}`);
+  const openList = (filter: 'all' | 'action' | 'active' | 'resolved') => {
+    try {
+      sessionStorage.setItem('filter', filter);
+    } catch {
+      /* ignore */
+    }
+    replace('#/cases');
+  };
+  const goBack = () => {
+    if (history.state?.inApp) history.back(); // popstate updates the route
+    else replace('#/cases'); // opened directly on the case (reload / Home screen)
+  };
+
+  if (route.name === 'case') return <CaseDetail key={route.id} id={route.id} onBack={goBack} onUnauthorized={onUnauthorized} />;
+
+  const tab: Tab = route.name === 'cases' ? 'cases' : route.name === 'licenses' ? 'licenses' : 'dashboard';
+  return (
+    <div className="flex h-full flex-col">
+      <main className="min-h-0 flex-1">
+        {tab === 'dashboard' ? (
+          <Dashboard mock={mock} onOpenCase={openCase} onOpenList={openList} onOpenLicenses={() => replace('#/licenses')} onUnauthorized={onUnauthorized} onLogout={onLogout} />
+        ) : tab === 'cases' ? (
+          <CaseList mock={mock} onOpen={openCase} onUnauthorized={onUnauthorized} onLogout={onLogout} />
+        ) : (
+          <Licenses mock={mock} onUnauthorized={onUnauthorized} onLogout={onLogout} />
+        )}
+      </main>
+      <TabBar
+        tab={tab}
+        only={licensesOnly ? ['licenses'] : undefined}
+        onChange={(t) => replace(t === 'cases' ? '#/cases' : t === 'licenses' ? '#/licenses' : '')}
+      />
+    </div>
+  );
+}
 
 export default function App() {
   const [auth, setAuth] = useState<'loading' | 'in' | 'out'>('loading');
@@ -56,21 +114,6 @@ export default function App() {
     setRoute(parseHash());
   };
 
-  const openCase = (id: string) => push(`#/case/${encodeURIComponent(id)}`);
-  const openList = (filter: 'all' | 'action' | 'active' | 'resolved') => {
-    try {
-      sessionStorage.setItem('filter', filter);
-    } catch {
-      /* ignore */
-    }
-    replace('#/cases');
-  };
-
-  const goBack = () => {
-    if (history.state?.inApp) history.back(); // popstate updates the route
-    else replace('#/cases'); // opened directly on the case (reload / Home screen)
-  };
-
   const unauthorized = useCallback(() => setAuth('out'), []);
   const logout = async () => {
     await api.logout().catch(() => {});
@@ -82,23 +125,9 @@ export default function App() {
   if (auth === 'loading') return <div className="flex h-full items-center justify-center text-neutral-500">…</div>;
   if (auth === 'out') return <Login onSuccess={check} />;
 
-  const tab: Tab = route.name === 'cases' ? 'cases' : 'dashboard';
   return (
     <TenantProvider onUnauthorized={unauthorized}>
-      {route.name === 'case' ? (
-        <CaseDetail key={route.id} id={route.id} onBack={goBack} onUnauthorized={unauthorized} />
-      ) : (
-        <div className="flex h-full flex-col">
-          <main className="min-h-0 flex-1">
-            {tab === 'dashboard' ? (
-              <Dashboard mock={mock} onOpenCase={openCase} onOpenList={openList} onUnauthorized={unauthorized} onLogout={logout} />
-            ) : (
-              <CaseList mock={mock} onOpen={openCase} onUnauthorized={unauthorized} onLogout={logout} />
-            )}
-          </main>
-          <TabBar tab={tab} onChange={(t) => replace(t === 'cases' ? '#/cases' : '')} />
-        </div>
-      )}
+      <Shell route={route} mock={mock} push={push} replace={replace} onUnauthorized={unauthorized} onLogout={logout} />
     </TenantProvider>
   );
 }
