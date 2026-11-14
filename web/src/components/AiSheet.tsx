@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
+import { t } from '../lib/i18n';
 import type { CaseDetails } from '../types';
 import Markdown from './Markdown';
 import Sheet from './Sheet';
@@ -8,7 +9,7 @@ import { SeverityBadge } from './Badges';
 type State = { status: 'idle' | 'loading' | 'done' | 'error'; text?: string; error?: string };
 
 const errText = (e: unknown) =>
-  e instanceof ApiError && e.status === 403 ? "Il ruolo della credenziale API non consente l'uso dell'AI." : 'Richiesta non riuscita. Riprova.';
+  e instanceof ApiError && e.status === 403 ? t("Il ruolo della credenziale API non consente l'uso dell'AI.") : t('Richiesta non riuscita. Riprova.');
 
 function Spinner({ label }: { label: string }) {
   return (
@@ -50,21 +51,21 @@ export default function AiSheet({ c, onClose, onUnauthorized }: { c: CaseDetails
   }
 
   return (
-    <Sheet title="Spiegazione AI" onClose={onClose}>
+    <Sheet title={t('Spiegazione AI')} onClose={onClose}>
       <p className="mb-3 rounded-xl bg-ios-blue/10 px-3 py-2 text-xs text-ios-blue">
-        Generata dall'AI di Sophos, <b>solo in inglese</b>. Può contenere imprecisioni: verifica sempre i fatti.
+        {t("Generata dall'AI di Sophos, solo in inglese. Può contenere imprecisioni: verifica sempre i fatti.")}
       </p>
 
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">Riassunto del caso</h3>
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('Riassunto del caso')}</h3>
       <div className="rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10">
-        {summary.status === 'loading' && <Spinner label="Elaborazione in corso… (circa 15 secondi)" />}
+        {summary.status === 'loading' && <Spinner label={t('Elaborazione in corso… (circa 15 secondi)')} />}
         {summary.status === 'error' && <p className="text-sm text-red-500">{summary.error}</p>}
-        {summary.status === 'done' && (summary.text ? <Markdown source={summary.text} /> : <p className="text-sm text-neutral-500">Nessun riassunto disponibile.</p>)}
+        {summary.status === 'done' && (summary.text ? <Markdown source={summary.text} /> : <p className="text-sm text-neutral-500">{t('Nessun riassunto disponibile.')}</p>)}
       </div>
 
       {(c.detections.length > 0 || (c.detectionIds?.length ?? 0) > 0) && (
         <>
-          <h3 className="mb-1 mt-5 text-xs font-semibold uppercase tracking-wide text-neutral-400">Analisi per detection</h3>
+          <h3 className="mb-1 mt-5 text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('Analisi per detection')}</h3>
           <ul className="space-y-2.5">
             {(c.detections.length ? c.detections : (c.detectionIds ?? []).map((id) => ({ id, name: id, severity: null }))).map((d) => {
               const s = det[d.id] ?? { status: 'idle' as const };
@@ -76,13 +77,13 @@ export default function AiSheet({ c, onClose, onUnauthorized }: { c: CaseDetails
                   </div>
                   {s.status === 'idle' && (
                     <button onClick={() => analyze(d.id)} className="mt-2.5 rounded-full bg-ios-blue px-3.5 py-1.5 text-sm font-semibold text-white active:opacity-70">
-                      ✨ Analizza con AI
+                      ✨ {t('Analizza con AI')}
                     </button>
                   )}
-                  {s.status === 'loading' && <Spinner label="Analisi in corso… (circa 12 secondi)" />}
+                  {s.status === 'loading' && <Spinner label={t('Analisi in corso… (circa 12 secondi)')} />}
                   {s.status === 'error' && (
                     <p className="mt-2 text-sm text-red-500">
-                      {s.error} <button className="font-semibold underline" onClick={() => analyze(d.id)}>Riprova</button>
+                      {s.error} <button className="font-semibold underline" onClick={() => analyze(d.id)}>{t('Riprova')}</button>
                     </p>
                   )}
                   {s.status === 'done' && <div className="mt-2.5 border-t border-black/5 pt-2.5 dark:border-white/10"><Markdown source={s.text ?? ''} /></div>}

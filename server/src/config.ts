@@ -13,7 +13,7 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   mock: bool(process.env.MOCK_MODE, false),
 
-  /** Dietro un reverse proxy HTTPS: legge X-Forwarded-* (req.secure, req.ip). */
+  /** Dietro un reverse proxy: legge X-Forwarded-* (req.secure, req.ip). */
   trustProxy: bool(process.env.TRUST_PROXY, false),
 
   accessPin: process.env.APP_ACCESS_PIN || '',
@@ -21,7 +21,7 @@ export const config = {
   sessionDays: Number(process.env.SESSION_DAYS || 30),
   /**
    * Cookie "Secure": 'auto' (default) = solo se la richiesta è HTTPS (req.secure, che con TRUST_PROXY
-   * legge X-Forwarded-Proto dal proxy). Così funziona sia in HTTP locale sia dietro HTTPS.
+   * legge X-Forwarded-Proto dal proxy). Così funziona sia da LAN in HTTP sia dalla tailnet in HTTPS.
    * COOKIE_SECURE=true/false forza il valore.
    */
   cookieSecure: ((v) => (v === undefined || v.trim() === '' || v.trim() === 'auto' ? 'auto' : bool(v)))(
@@ -31,8 +31,17 @@ export const config = {
   staticDir: process.env.STATIC_DIR || path.resolve(__dirname, '../../web/dist'),
 
   sophos: {
-    clientId: process.env.SOPHOS_CLIENT_ID || '',
-    clientSecret: process.env.SOPHOS_CLIENT_SECRET || '',
+    /**
+     * Connessioni (credenziali API): SOPHOS_CLIENT_ID/SECRET, poi SOPHOS_CLIENT_ID_2/SECRET_2, ... fino a _6.
+     * Ognuna può essere di tenant (un cliente) o partner/organization (elenca i clienti): il registro dei tenant
+     * le unisce e, per ogni cliente, usa la prima connessione che riesce a leggerne i casi.
+     */
+    connections: [1, 2, 3, 4, 5, 6]
+      .map((i) => {
+        const s = i === 1 ? '' : `_${i}`;
+        return { clientId: process.env[`SOPHOS_CLIENT_ID${s}`] || '', clientSecret: process.env[`SOPHOS_CLIENT_SECRET${s}`] || '' };
+      })
+      .filter((c) => c.clientId && c.clientSecret),
     tokenUrl: process.env.SOPHOS_TOKEN_URL || 'https://id.sophos.com/api/v2/oauth2/token',
     whoamiUrl: process.env.SOPHOS_WHOAMI_URL || 'https://api.central.sophos.com/whoami/v1',
     /** Obbligatorio solo se le credenziali sono Partner/Organization: tenant da interrogare. */
@@ -47,7 +56,7 @@ export const config = {
 export function validateConfig(): string[] {
   const errors: string[] = [];
   if (!config.accessPin) errors.push('APP_ACCESS_PIN mancante: impostalo nel file .env');
-  if (!config.mock && (!config.sophos.clientId || !config.sophos.clientSecret)) {
+  if (!config.mock && config.sophos.connections.length === 0) {
     errors.push('SOPHOS_CLIENT_ID / SOPHOS_CLIENT_SECRET mancanti (oppure usa MOCK_MODE=true)');
   }
   return errors;

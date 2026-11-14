@@ -1,3 +1,4 @@
+import { currentLang } from '../lang';
 /**
  * Client Sophos.
  *  1. POST id.sophos.com/api/v2/oauth2/token  (client_credentials, scope=token) -> JWT, cache in memoria
@@ -6,6 +7,8 @@
  * Segreti e token restano solo nel backend.
  */
 import { config } from '../config';
+import { Connection, SophosError } from './sophosConnection';
+import type { CaseBackend } from './backend';
 import type {
   CaseComment,
   CaseDetails,
@@ -50,13 +53,6 @@ import {
   normalizeSummary,
 } from './sophosQueries';
 
-interface Whoami {
-  id: string;
-  idType: 'tenant' | 'organization' | 'partner' | 'distributor';
-  apiHosts: { global: string; dataRegion?: string };
-}
-
-const SKEW_MS = 60_000; // rinnova 60s prima della scadenza
 const MAX_PAGES = 3; // fino a 300 casi
 const ENTITY_TTL_MS = 10 * 60_000;
 const MAX_DETECTIONS = 20; // detection recuperate per caso
@@ -65,6 +61,12 @@ const DASH_TTL_MS = 60_000;
 const MAX_ASSETS = 10; // asset risolti per caso
 const MAX_ENRICHED = 25; // casi aperti arricchiti con l'host nella lista
 
+export interface Counts {
+  total: number;
+  open: number;
+  actionRequired: number;
+}
+
 interface Evidence {
   entities: Entity[];
   detectionIds: string[];
@@ -72,98 +74,26 @@ interface Evidence {
   mitre: MitreTechnique[];
 }
 
-export class SophosError extends Error {
-  constructor(message: string, public status = 502) {
-    super(message);
-  }
-}
+export { SophosError };
 
-class SophosClient {
-  private token: { value: string; expiresAt: number } | null = null;
-  private tokenPromise: Promise<string> | null = null;
-  private tenantId: string | null = null;
-  private tenantPromise: Promise<string> | null = null;
+/** API di un singolo cliente (tenant), raggiunto tramite una connessione. Le cache sono per tenant. */
+export class TenantApi implements CaseBackend {
+  readonly kind = 'fusion' as const;
+  readonly capabilities = { comments: true, classify: true, ai: true };
+
+  constructor(
+    private readonly conn: Connection,
+    readonly tenantId: string,
+  ) {}
 
   /** ID autore dei commenti scritti da questa app (per distinguerli da quelli degli analisti). */
   private myAuthorIds(): Set<string> {
-    return new Set([config.sophos.clientId, ...config.sophos.myAuthorIds].filter(Boolean));
+    return new Set([this.conn.clientId, ...config.sophos.myAuthorIds].filter(Boolean));
   }
 
-  // ---------------------------------------------------------------- auth
-  private async getToken(force = false): Promise<string> {
-    if (!force && this.token && this.token.expiresAt - SKEW_MS > Date.now()) return this.token.value;
-    this.tokenPromise ??= this.fetchToken().finally(() => (this.tokenPromise = null));
-    return this.tokenPromise;
+  private graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+    return this.conn.graphql<T>(this.tenantId, query, variables);
   }
-
-  private async fetchToken(): Promise<string> {
-    const body = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: config.sophos.clientId,
-      client_secret: config.sophos.clientSecret,
-      scope: 'token',
-    });
-    const res = await fetch(config.sophos.tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    });
-    if (!res.ok) throw new SophosError(`Autenticazione Sophos fallita (${res.status})`, 502);
-    const json = (await res.json()) as { access_token: string; expires_in: number };
-    this.token = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
-    return this.token.value;
-  }
-
-  // ---------------------------------------------------------------- tenant (whoami)
-  private async getTenantId(): Promise<string> {
-    if (this.tenantId) return this.tenantId;
-    this.tenantPromise ??= this.resolveTenant().finally(() => (this.tenantPromise = null));
-    return (this.tenantId = await this.tenantPromise);
-  }
-
-  private async resolveTenant(): Promise<string> {
-    if (config.sophos.tenantId) return config.sophos.tenantId; // Partner/Organization: tenant esplicito
-    const token = await this.getToken();
-    const res = await fetch(config.sophos.whoamiUrl, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new SophosError(`whoami Sophos fallito (${res.status})`);
-    const who = (await res.json()) as Whoami;
-    if (who.idType !== 'tenant') {
-      throw new SophosError(`Credenziali ${who.idType}: imposta SOPHOS_TENANT_ID nel .env`, 500);
-    }
-    return who.id;
-  }
-
-  // ---------------------------------------------------------------- GraphQL
-  private async graphql<T>(query: string, variables: Record<string, unknown>, retry = true, attempt = 1): Promise<T> {
-    const tenant = await this.getTenantId();
-    const token = await this.getToken();
-    const res = await fetch(config.sophos.graphqlUrl, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenant, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables }),
-    });
-    if (res.status === 401 && retry) {
-      this.token = null; // token scaduto/revocato: rinnova e riprova una volta
-      await this.getToken(true);
-      return this.graphql<T>(query, variables, false);
-    }
-    if (!res.ok) throw new SophosError(`GraphQL Sophos HTTP ${res.status}`);
-    const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
-    // Errori GraphQL = HTTP 200 con array `errors`
-    if (json.errors?.length) {
-      const msg = json.errors.map((e) => e.message).join('; ');
-      // errori transitori del backend Sophos (database occupato): riprova con breve attesa
-      if (attempt < 3 && /conn busy|bad connection|timeout|temporar/i.test(msg)) {
-        await new Promise((r) => setTimeout(r, 300 * attempt));
-        return this.graphql<T>(query, variables, retry, attempt + 1);
-      }
-      // permessi insufficienti sul ruolo della credenziale API (es. ReadOnly che prova a scrivere)
-      if (/not authorized/i.test(msg)) throw new SophosError(`not_authorized: ${msg}`, 403);
-      throw new SophosError(`GraphQL: ${msg}`);
-    }
-    return json.data as T;
-  }
-
   // ---------------------------------------------------------------- entità (host / utenti)
   private evidenceCache = new Map<string, { at: number } & Evidence>();
   /** Se la credenziale non ha Agent:read gli asset non sono risolvibili: non riprovare per un'ora. */
@@ -220,10 +150,12 @@ class SophosClient {
 
   // ---------------------------------------------------------------- dati di riferimento (cache 1 h)
   private refCache: { at: number; data: Reference } | null = null;
+  private statuses: { id: string; name: string; isClosed: boolean }[] = [];
 
   async getReference(): Promise<Reference> {
     if (this.refCache && Date.now() - this.refCache.at < REF_TTL_MS) return this.refCache.data;
     const st = await this.graphql<{ casePrimaryStatuses: { primaryStatuses: any[] } }>(Q_REFERENCE_STATUSES, {});
+    this.statuses = st.casePrimaryStatuses?.primaryStatuses ?? [];
     const v = await this.graphql<{ casePrimaryVerdicts: { primaryVerdicts: any[] } }>(Q_REFERENCE_VERDICTS, {});
     const sv = await this.graphql<{ caseSecondaryVerdicts: { secondaryVerdicts: any[] } }>(Q_REFERENCE_SECONDARY_VERDICTS, {});
     const ref = (r: any): Ref => ({ id: String(r.id), name: String(r.name), title: String(r.title ?? r.name) });
@@ -285,6 +217,29 @@ class SophosClient {
     });
   }
 
+  // ---------------------------------------------------------------- conteggi per la vista portafoglio
+  private countsCache: { at: number; data: Counts } | null = null;
+
+  /** Conteggi leggeri (una aggregazione): casi aperti e da gestire. Cache 2 minuti. */
+  async getCounts(): Promise<Counts> {
+    if (this.countsCache && Date.now() - this.countsCache.at < 2 * 60_000) return this.countsCache.data;
+    await this.getReference(); // popola this.statuses
+    const r = await this.graphql<{ casesAggregation: { aggregation: Record<string, any>[] } }>(Q_AGGREGATION, {
+      query: 'where severity >= 0 | aggregate count by primaryStatusId',
+    });
+    const byId = new Map(this.statuses.map((s) => [s.id, s]));
+    const data: Counts = { total: 0, open: 0, actionRequired: 0 };
+    for (const row of r.casesAggregation?.aggregation ?? []) {
+      const n = Number(row.row_count);
+      const s = byId.get(String(row.primaryStatusId));
+      data.total += n;
+      if (!s?.isClosed) data.open += n;
+      if (s?.name === 'customer_action_required') data.actionRequired += n;
+    }
+    this.countsCache = { at: Date.now(), data };
+    return data;
+  }
+
   // ---------------------------------------------------------------- dashboard
   private dashCache = new Map<number, { at: number; data: DashboardData }>();
 
@@ -318,7 +273,7 @@ class SophosClient {
     const verdictTitle = new Map(ref.verdicts.map((v) => [v.id, v]));
     const byVerdict = verdictRows.map((r) => {
       const v = verdictTitle.get(String(r.primaryVerdictId));
-      return { title: v?.title ?? 'Senza verdetto', name: v?.name ?? 'none', count: Number(r.row_count) };
+      return { title: v?.title ?? (currentLang() === 'en' ? 'No verdict' : 'Senza verdetto'), name: v?.name ?? 'none', count: Number(r.row_count) };
     });
 
     const stCount = new Map<CaseStatus, number>();
@@ -413,4 +368,4 @@ class SophosClient {
   }
 }
 
-export const sophosClient = new SophosClient();
+

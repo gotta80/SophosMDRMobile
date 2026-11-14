@@ -1,4 +1,14 @@
-import type { CaseComment, CaseDetails, CaseSummary, ClassifyInput, DashboardData, Reference } from './types';
+import { getLang } from './lib/i18n';
+import type {
+  CaseComment,
+  CaseDetails,
+  CaseSummary,
+  ClassifyInput,
+  DashboardData,
+  PortfolioItem,
+  Reference,
+  TenantInfo,
+} from './types';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public retryAfter?: number) {
@@ -6,11 +16,17 @@ export class ApiError extends Error {
   }
 }
 
+/** Cliente selezionato: inviato a ogni richiesta nell'header X-App-Tenant. */
+let currentTenant = '';
+export const setApiTenant = (id: string) => {
+  currentTenant = id;
+};
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: 'same-origin',
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: { 'Content-Type': 'application/json', 'X-App-Lang': getLang(), ...(currentTenant ? { 'X-App-Tenant': currentTenant } : {}), ...init?.headers },
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, body.error ?? `HTTP ${res.status}`, body.retryAfter);
@@ -24,6 +40,11 @@ export const api = {
   session: () => req<{ authenticated: boolean; mock: boolean }>('/api/session'),
   login: (pin: string) => req<{ ok: true }>('/api/login', post({ pin })),
   logout: () => req<{ ok: true }>('/api/logout', { method: 'POST', body: '{}' }),
+
+  tenants: () => req<{ tenants: TenantInfo[]; probing: boolean }>('/api/tenants'),
+  refreshTenants: () => req<{ ok: true }>('/api/tenants/refresh', post({})),
+  portfolio: () => req<{ portfolio: PortfolioItem[] }>('/api/portfolio').then((r) => r.portfolio),
+
   cases: (status?: string[]) =>
     req<{ cases: CaseSummary[] }>(`/api/cases${status?.length ? `?status=${status.join(',')}` : ''}`).then((r) => r.cases),
   caseDetails: (id: string) => req<{ case: CaseDetails }>(`/api/cases/${enc(id)}`).then((r) => r.case),

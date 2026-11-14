@@ -62,6 +62,8 @@ export interface CaseDetails extends CaseSummary {
   keyFindings?: string;
   /** ID delle detection collegate (evidenze del caso): servono per l'analisi AI */
   detectionIds?: string[];
+  /** Cronologia (solo casi classic: l'API REST non ha commenti, ma ha il registro attività) */
+  activities?: Activity[];
   entities: Entity[];
   detections: Detection[];
   mitre: MitreTechnique[];
@@ -93,7 +95,7 @@ export interface DashboardData {
   kpi: {
     totalCases: number;
     actionRequiredCases: number;
-    effortHours: number;
+    effortHours: number | null; // null sui casi classic (non disponibile)
     escalatedCases: number;
     weekendCases: number;
     openCases: number;
@@ -103,4 +105,31 @@ export interface DashboardData {
   byStatus: { key: CaseStatus; count: number }[];
   daily: { date: string; count: number }[];
   attention: CaseSummary[]; // casi che richiedono azione
+}
+
+/** Cosa può fare l'app su un cliente: dipende da dove vivono i suoi casi (Fusion o Central classic). */
+export interface Capabilities {
+  comments: boolean;
+  classify: boolean;
+  ai: boolean;
+}
+
+export type TenantKind = 'fusion' | 'classic';
+/** Voce della cronologia di un caso classic (dal registro attività di Sophos Central). */
+export interface ActivityChange {
+  label: string;
+  from?: string;
+  to?: string;
+}
+
+export interface Activity {
+  id: string;
+  at: string; // ISO
+  who: string;
+  kind: 'note' | 'message' | 'status' | 'action' | 'file' | 'created' | 'change' | 'ai' | 'other';
+  /** testo della nota/messaggio, o riga di descrizione */
+  text?: string;
+  changes?: ActivityChange[];
+  /** voce "di contorno" (code interne, tag, collaboratori...): nascosta di default */
+  minor?: boolean;
 }

@@ -1,9 +1,10 @@
 /** Dati mock realistici per MOCK_MODE=true. Stato in memoria: i commenti aggiunti restano fino al riavvio. */
+import { currentLang } from '../lang';
 import type { CaseComment, CaseDetails, CaseFilters, CaseSummary, ClassifyInput, DashboardData, Reference } from '../types';
 
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const A = (name = 'Sophos MDR Analyst'): CaseComment['author'] => ({ name, role: 'analyst' });
-const ME: CaseComment['author'] = { name: 'Tu', role: 'customer' };
+const ME: CaseComment['author'] = { name: 'Tu', role: 'customer' }; // il client mostra 'Tu'/'You' in base al ruolo
 
 const cases: CaseDetails[] = [
   {
@@ -114,6 +115,50 @@ const cases: CaseDetails[] = [
   },
 ];
 
+/** Traduzione inglese dei contenuti demo (per id caso / id commento). Gli ID e i dati tecnici restano uguali. */
+const EN_CASES: Record<string, { title: string; summary: string; keyFindings?: string }> = {
+  '7b0e2c1a-4f5d-4e2a-9a31-0c8f1d2b6a01': {
+    title: 'Possible ransomware: mass file encryption on file server',
+    summary:
+      'MDR analysts detected mass renaming of files with the .locked extension on SRV-FILE01, traced back to a process launched by the svc-backup account. The behavior is consistent with active ransomware. Immediate isolation of the host is recommended to prevent propagation to network shares.',
+    keyFindings:
+      '### Investigation Summary\n**Mass encryption** of files detected on `SRV-FILE01` by a process launched by `CORP\\svc-backup`. We recommend **isolating the host immediately**.\n\n### Investigation Details\n#### Analysis\n- PowerShell deleted the shadow copies (`vssadmin delete shadows`)\n- Over 4,000 files renamed with the `.locked` extension within 10 minutes\n\n| Indicator | Value |\n|---|---|\n| Host | SRV-FILE01 |\n| Account | CORP\\svc-backup |',
+  },
+  '3c9d8e77-1b2a-4c55-8d10-5e6f7a8b9c02': {
+    title: 'Suspicious sign-in from an unusual location',
+    summary: 'Successful login for m.rossi from an IP in an unusual country, followed by a download of sensitive data. Analysts are correlating the activity with other authentication events.',
+  },
+  '9a1f4b3c-2d6e-4f70-b8a9-1c2d3e4f5a03': {
+    title: 'Unauthorized remote access tool detected',
+    summary: 'Installation of AnyDesk detected, which is not in the authorized baseline.',
+  },
+  '5d2e6f80-3a4b-4c91-9e0f-7a8b9c0d1e04': {
+    title: 'Lateral movement via PsExec',
+    summary: 'PsExec used from SRV-APP02 against multiple hosts. Case on hold pending feedback on whether this is scheduled administrative activity.',
+  },
+  '1e3f5a7c-9b0d-4e2f-a4c6-8d0e2f4a6b05': {
+    title: 'Commodity malware blocked and removed',
+    summary: 'Generic trojan intercepted by Intercept X and removed automatically. No further action needed.',
+  },
+};
+const EN_COMMENTS: Record<string, string> = {
+  c1: 'Case created automatically from a high-priority detection.',
+  c2: 'We started the analysis on SRV-FILE01. We see active encryption by a suspicious process launched by svc-backup.',
+  c3: '⚠️ Action required: can you confirm that we may isolate SRV-FILE01 from the network? Isolation cuts access to the shares but stops the spread. We are waiting for your confirmation.',
+  c4: 'We are checking the authentication logs. Can you confirm whether m.rossi is traveling?',
+  c5: 'Can we trace the activity back to scheduled maintenance?',
+  c6: 'I will check with the infrastructure team and get back to you. @sophos',
+  c7: 'Threat neutralized. We are closing the case.',
+};
+/** Applica la lingua corrente (default italiano: i dati originali). */
+function loc<T extends CaseSummary | CaseDetails>(c: T): T {
+  if (currentLang() !== 'en') return c;
+  const o = EN_CASES[c.id];
+  const out: any = { ...c, ...(o ? { title: o.title, summary: o.summary, ...(o.keyFindings && 'keyFindings' in c ? { keyFindings: o.keyFindings } : {}) } : {}) };
+  if ('comments' in c) out.comments = c.comments.map((m) => (EN_COMMENTS[m.id] ? { ...m, body: EN_COMMENTS[m.id] } : m));
+  return out;
+}
+
 const summarize = ({ summary, keyFindings, detectionIds, entities, detections, mitre, comments, ...s }: CaseDetails): CaseSummary => s;
 
 export const mockStore = {
@@ -122,11 +167,12 @@ export const mockStore = {
       .filter((c) => !filters.statuses?.length || filters.statuses.includes(c.status))
       .filter((c) => !filters.severities?.length || filters.severities.includes(c.severity))
       .map(summarize)
+      .map(loc)
       .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
   },
   get(id: string): CaseDetails | null {
     const c = cases.find((x) => x.id === id);
-    return c ? { ...c, detectionIds: c.detections.map((d) => d.id) } : null;
+    return c ? loc({ ...c, detectionIds: c.detections.map((d) => d.id) }) : null;
   },
   addComment(id: string, text: string): CaseComment | null {
     const c = cases.find((x) => x.id === id);
@@ -157,7 +203,7 @@ export const mockStore = {
   aiCaseSummary(id: string): string | null {
     const c = cases.find((x) => x.id === id);
     return c
-      ? `The Case \`${c.shortId ?? c.id}\` (${c.title}) concerns host **${c.primaryEntity}**. Analysts observed the activity listed in the detections and found no evidence of lateral movement. Recommended: validate the activity with the asset owner. _(Mock AI summary)_`
+      ? `The Case \`${c.shortId ?? c.id}\` (${loc(c).title}) concerns host **${c.primaryEntity}**. Analysts observed the activity listed in the detections and found no evidence of lateral movement. Recommended: validate the activity with the asset owner. _(Mock AI summary)_`
       : null;
   },
 
@@ -185,7 +231,7 @@ export const mockStore = {
     const byVerdict = [
       { title: 'True Positive - Benign', name: 'true_positive_benign', count: 3 },
       { title: 'False Positive', name: 'false_positive', count: 1 },
-      { title: 'Senza verdetto', name: 'none', count: list.filter((c) => c.status !== 'resolved').length },
+      { title: currentLang() === 'en' ? 'No verdict' : 'Senza verdetto', name: 'none', count: list.filter((c) => c.status !== 'resolved').length },
     ];
     return {
       days,
@@ -202,7 +248,7 @@ export const mockStore = {
       byVerdict,
       byStatus: (['actionRequired', 'new', 'investigating', 'onHold', 'resolved'] as const).map((key) => ({ key, count: list.filter((c) => c.status === key).length })),
       daily,
-      attention: cases.filter((c) => c.status === 'actionRequired').map(summarize),
+      attention: cases.filter((c) => c.status === 'actionRequired').map(summarize).map(loc),
     };
   },
 };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
+import { t } from '../lib/i18n';
 import type { CaseDetails, Reference } from '../types';
 import { VERDICT_CHIP, VERDICT_HINT, verdictLabel } from '../lib/format';
 import Sheet from './Sheet';
@@ -44,7 +45,7 @@ export default function ClassifySheet({
       })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 401) return onUnauthorized();
-        setLoadErr('Impossibile caricare le opzioni di classificazione.');
+        setLoadErr(t('Impossibile caricare le opzioni di classificazione.'));
       });
   }, [onUnauthorized]);
 
@@ -67,8 +68,8 @@ export default function ClassifySheet({
       if (e instanceof ApiError && e.status === 401) return onUnauthorized();
       setError(
         e instanceof ApiError && e.status === 403
-          ? 'Permessi insufficienti: il ruolo della credenziale API non consente di modificare il caso.'
-          : `Sophos ha rifiutato la modifica${e instanceof ApiError ? `: ${e.message.replace(/^GraphQL:\s*/, '')}` : '.'}`,
+          ? t('Permessi insufficienti: il ruolo della credenziale API non consente di modificare il caso.')
+          : `${t('Sophos ha rifiutato la modifica')}${e instanceof ApiError ? `: ${e.message.replace(/^GraphQL:\s*/, '')}` : '.'}`,
       );
       setStep('form');
     } finally {
@@ -77,14 +78,14 @@ export default function ClassifySheet({
   }
 
   return (
-    <Sheet title={step === 'form' ? 'Classifica il caso' : 'Conferma'} onClose={busy ? () => {} : onClose}>
-      {!ref && !loadErr && <p className="py-6 text-center text-sm text-neutral-500">Caricamento…</p>}
+    <Sheet title={step === 'form' ? t('Classifica il caso') : t('Conferma')} onClose={busy ? () => {} : onClose}>
+      {!ref && !loadErr && <p className="py-6 text-center text-sm text-neutral-500">{t('Caricamento…')}</p>}
       {loadErr && <p className="py-6 text-center text-sm text-red-500">{loadErr}</p>}
 
       {ref && step === 'form' && (
         <div className="space-y-4">
           <div>
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">Esito dell'analisi</h3>
+            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-400">{t("Esito dell'analisi")}</h3>
             <div className="space-y-2">
               {verdicts.map((v) => {
                 const sel = v.id === verdictId;
@@ -113,7 +114,7 @@ export default function ClassifySheet({
           </div>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Motivazione</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('Motivazione')}</span>
             <select
               value={secondaryId}
               onChange={(e) => setSecondaryId(e.target.value)}
@@ -126,13 +127,13 @@ export default function ClassifySheet({
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Nota (facoltativa)</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-400">{t('Nota (facoltativa)')}</span>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               maxLength={1000}
-              placeholder="Es. attività di sviluppo autorizzata dal team infrastruttura"
+              placeholder={t('Es. attività di sviluppo autorizzata dal team infrastruttura')}
               className="w-full resize-none rounded-xl bg-white px-3 py-2.5 text-[16px] outline-none ring-1 ring-black/10 focus:ring-ios-blue dark:bg-neutral-900 dark:ring-white/15"
             />
           </label>
@@ -144,8 +145,8 @@ export default function ClassifySheet({
             className="flex w-full items-center justify-between rounded-2xl bg-white p-3.5 text-left ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/10"
           >
             <span>
-              <span className="block text-[15px] font-semibold">Chiudi il caso</span>
-              <span className="block text-xs text-neutral-500">{close ? 'Il caso passerà allo stato Chiuso.' : 'Il caso resta aperto: viene solo impostato il verdetto.'}</span>
+              <span className="block text-[15px] font-semibold">{t('Chiudi il caso')}</span>
+              <span className="block text-xs text-neutral-500">{close ? t('Il caso passerà allo stato Chiuso.') : t('Il caso resta aperto: viene solo impostato il verdetto.')}</span>
             </span>
             <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${close ? 'bg-green-500' : 'bg-neutral-300 dark:bg-neutral-600'}`}>
               <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${close ? 'left-[22px]' : 'left-0.5'}`} />
@@ -159,7 +160,7 @@ export default function ClassifySheet({
             onClick={() => setStep('confirm')}
             className="w-full rounded-2xl bg-ios-blue py-3.5 text-[16px] font-semibold text-white active:opacity-80 disabled:opacity-40"
           >
-            Continua
+            {t('Continua')}
           </button>
         </div>
       )}
@@ -171,34 +172,34 @@ export default function ClassifySheet({
             <p className="mt-0.5 text-[15px] font-semibold leading-snug">{c.title}</p>
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-neutral-500">Esito</dt>
+                <dt className="text-neutral-500">{t('Esito')}</dt>
                 <dd><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${VERDICT_CHIP[verdict.name] ?? ''}`}>{verdictLabel(verdict)}</span></dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-neutral-500">Motivazione</dt>
+                <dt className="text-neutral-500">{t('Motivazione')}</dt>
                 <dd className="text-right">{secondary?.title ?? '—'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-neutral-500">Stato</dt>
-                <dd className="font-semibold">{close ? 'Verrà chiuso' : 'Resta aperto'}</dd>
+                <dt className="text-neutral-500">{t('Stato')}</dt>
+                <dd className="font-semibold">{close ? t('Verrà chiuso') : t('Resta aperto')}</dd>
               </div>
               {reason.trim() && (
                 <div>
-                  <dt className="text-neutral-500">Nota</dt>
+                  <dt className="text-neutral-500">{t('Nota')}</dt>
                   <dd className="mt-0.5 whitespace-pre-wrap">{reason.trim()}</dd>
                 </div>
               )}
             </dl>
           </div>
           <p className="rounded-xl bg-amber-500/15 p-3 text-xs text-amber-800 dark:text-amber-300">
-            Questa azione modifica il caso su Sophos e sarà visibile agli analisti MDR.
+            {t('Questa azione modifica il caso su Sophos e sarà visibile agli analisti MDR.')}
           </p>
           <div className="flex gap-3">
             <button disabled={busy} onClick={() => setStep('form')} className="flex-1 rounded-2xl bg-black/5 py-3.5 text-[16px] font-semibold active:opacity-70 disabled:opacity-40 dark:bg-white/10">
-              Indietro
+              {t('Indietro')}
             </button>
             <button disabled={busy} onClick={submit} className="flex-1 rounded-2xl bg-ios-blue py-3.5 text-[16px] font-semibold text-white active:opacity-80 disabled:opacity-60">
-              {busy ? 'Invio…' : close ? 'Conferma e chiudi' : 'Conferma'}
+              {busy ? t('Invio…') : close ? t('Conferma e chiudi') : t('Conferma')}
             </button>
           </div>
         </div>

@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import CaseList from './components/CaseList';
 import CaseDetail from './components/CaseDetail';
 import TabBar, { Tab } from './components/TabBar';
+import { TenantProvider } from './lib/tenant';
 
 /**
  * Routing a hash: '' = dashboard (home), '#/cases' = lista, '#/case/<id>' = dettaglio.
@@ -78,24 +79,26 @@ export default function App() {
     setAuth('out');
   };
 
-  if (auth === 'loading') return <div className="flex min-h-[100dvh] items-center justify-center text-neutral-500">…</div>;
+  if (auth === 'loading') return <div className="flex h-full items-center justify-center text-neutral-500">…</div>;
   if (auth === 'out') return <Login onSuccess={check} />;
-
-  if (route.name === 'case') {
-    return <CaseDetail key={route.id} id={route.id} onBack={goBack} onUnauthorized={unauthorized} />;
-  }
 
   const tab: Tab = route.name === 'cases' ? 'cases' : 'dashboard';
   return (
-    <div className="flex h-[100dvh] flex-col">
-      <main className="min-h-0 flex-1">
-        {tab === 'dashboard' ? (
-          <Dashboard mock={mock} onOpenCase={openCase} onOpenList={openList} onUnauthorized={unauthorized} onLogout={logout} />
-        ) : (
-          <CaseList mock={mock} onOpen={openCase} onUnauthorized={unauthorized} onLogout={logout} />
-        )}
-      </main>
-      <TabBar tab={tab} onChange={(t) => replace(t === 'cases' ? '#/cases' : '')} />
-    </div>
+    <TenantProvider onUnauthorized={unauthorized}>
+      {route.name === 'case' ? (
+        <CaseDetail key={route.id} id={route.id} onBack={goBack} onUnauthorized={unauthorized} />
+      ) : (
+        <div className="flex h-full flex-col">
+          <main className="min-h-0 flex-1">
+            {tab === 'dashboard' ? (
+              <Dashboard mock={mock} onOpenCase={openCase} onOpenList={openList} onUnauthorized={unauthorized} onLogout={logout} />
+            ) : (
+              <CaseList mock={mock} onOpen={openCase} onUnauthorized={unauthorized} onLogout={logout} />
+            )}
+          </main>
+          <TabBar tab={tab} onChange={(t) => replace(t === 'cases' ? '#/cases' : '')} />
+        </div>
+      )}
+    </TenantProvider>
   );
 }

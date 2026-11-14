@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
+import { t } from '../lib/i18n';
+import LangToggle from './LangToggle';
 import type { CaseStatus, CaseSummary } from '../types';
 import CaseCard from './CaseCard';
+import TenantPicker from './TenantPicker';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 
 type FilterKey = 'all' | 'action' | 'active' | 'resolved';
 const FILTERS: { key: FilterKey; label: string; test: (s: CaseStatus) => boolean }[] = [
-  { key: 'all', label: 'Tutti', test: () => true },
-  { key: 'action', label: 'Action Required', test: (s) => s === 'actionRequired' },
-  { key: 'active', label: 'Attivi', test: (s) => s !== 'resolved' },
-  { key: 'resolved', label: 'Risolti', test: (s) => s === 'resolved' },
+  { key: 'all', label: t('Tutti'), test: () => true },
+  { key: 'action', label: t('Action Required'), test: (s) => s === 'actionRequired' },
+  { key: 'active', label: t('Attivi'), test: (s) => s !== 'resolved' },
+  { key: 'resolved', label: t('Risolti'), test: (s) => s === 'resolved' },
 ];
 
 interface Props {
@@ -32,7 +35,7 @@ export default function CaseList({ onOpen, onUnauthorized, onLogout, mock }: Pro
       setError('');
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return onUnauthorized();
-      setError(e instanceof ApiError ? e.message : 'Errore di rete');
+      setError(e instanceof ApiError ? e.message : t('Errore di rete'));
     }
   }, [onUnauthorized]);
 
@@ -65,15 +68,17 @@ export default function CaseList({ onOpen, onUnauthorized, onLogout, mock }: Pro
             Sophos MDR {mock && <span className="ml-1 rounded bg-yellow-400/30 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase text-yellow-700 dark:text-yellow-300">mock</span>}
           </h1>
           <div className="flex items-center gap-1">
-            <button aria-label="Aggiorna" onClick={manualRefresh} className="rounded-full p-2 text-ios-blue active:bg-black/5 dark:active:bg-white/10">
+            <button aria-label={t('Aggiorna')} onClick={manualRefresh} className="rounded-full p-2 text-ios-blue active:bg-black/5 dark:active:bg-white/10">
               <svg viewBox="0 0 24 24" className={`h-6 w-6 ${spinning || refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg>
             </button>
-            <button aria-label="Esci" onClick={onLogout} className="rounded-full p-2 text-neutral-400 active:bg-black/5 dark:active:bg-white/10">
+            <LangToggle />
+            <button aria-label={t('Esci')} onClick={onLogout} className="rounded-full p-2 text-neutral-400 active:bg-black/5 dark:active:bg-white/10">
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5M21 12H9" /></svg>
             </button>
           </div>
         </div>
-        <nav className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3" aria-label="Filtri">
+        <TenantPicker onUnauthorized={onUnauthorized} />
+        <nav className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3" aria-label={t('Filtri')}>
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -99,17 +104,17 @@ export default function CaseList({ onOpen, onUnauthorized, onLogout, mock }: Pro
           className="flex items-center justify-center text-xs text-neutral-500 transition-[height] duration-150"
           style={{ height: pull, transitionDuration: pull === 0 || refreshing ? '200ms' : '0ms' }}
         >
-          {pull > 10 && (refreshing ? 'Aggiornamento…' : pull >= threshold ? 'Rilascia per aggiornare' : 'Trascina per aggiornare')}
+          {pull > 10 && (refreshing ? t('Aggiornamento…') : pull >= threshold ? t('Rilascia per aggiornare') : t('Trascina per aggiornare'))}
         </div>
 
         {error && (
           <div className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
             {error}{' '}
-            <button className="font-semibold underline" onClick={load}>Riprova</button>
+            <button className="font-semibold underline" onClick={load}>{t('Riprova')}</button>
           </div>
         )}
-        {cases === null && !error && <p className="mt-10 text-center text-neutral-500">Caricamento…</p>}
-        {cases && visible.length === 0 && <p className="mt-10 text-center text-neutral-500">Nessun caso</p>}
+        {cases === null && !error && <p className="mt-10 text-center text-neutral-500">{t('Caricamento…')}</p>}
+        {cases && visible.length === 0 && <p className="mt-10 text-center text-neutral-500">{t('Nessun caso')}</p>}
 
         <ul className="space-y-2.5 py-3">
           {visible.map((c) => (

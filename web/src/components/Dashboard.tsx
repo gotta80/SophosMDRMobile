@@ -1,9 +1,14 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
+import { locale, t } from '../lib/i18n';
+import LangToggle from './LangToggle';
 import type { DashboardData } from '../types';
 import { SEVERITY_BAR, SEVERITY_LABEL, VERDICT_BAR, verdictLabel } from '../lib/format';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import CaseCard from './CaseCard';
+import TenantPicker from './TenantPicker';
+import { useTenant } from '../lib/tenant';
+import type { PortfolioItem } from '../types';
 
 const PERIODS = [7, 30, 90] as const;
 
@@ -63,11 +68,11 @@ function Trend({ daily, weekly }: { daily: DashboardData['daily']; weekly: boole
   const max = Math.max(1, ...daily.map((d) => d.count));
   const W = 300, H = 90, gap = daily.length > 40 ? 1 : 2;
   const bw = (W - gap * (daily.length - 1)) / daily.length;
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: '2-digit', month: 'short' });
   const total = daily.reduce((n, d) => n + d.count, 0);
   return (
     <figure>
-      <svg viewBox={`0 0 ${W} ${H + 4}`} className="h-24 w-full" role="img" aria-label={`Casi ${weekly ? 'per settimana' : 'per giorno'}, totale ${total}`}>
+      <svg viewBox={`0 0 ${W} ${H + 4}`} className="h-24 w-full" role="img" aria-label={t('Casi {per}, totale {n}', { per: weekly ? t('per settimana') : t('per giorno'), n: total })}>
         <line x1="0" x2={W} y1={H} y2={H} className="stroke-black/10 dark:stroke-white/15" strokeWidth="1" />
         {daily.map((d, i) => {
           const h = (d.count / max) * (H - 8);
@@ -80,8 +85,8 @@ function Trend({ daily, weekly }: { daily: DashboardData['daily']; weekly: boole
       </svg>
       <figcaption className="mt-1 flex justify-between text-[11px] text-neutral-400">
         <span>{fmt(daily[0].date)}</span>
-        <span>{weekly ? 'casi per settimana' : 'casi per giorno'} · picco {max}</span>
-        <span>oggi</span>
+        <span>{weekly ? t('casi per settimana') : t('casi per giorno')} · {t('picco')} {max}</span>
+        <span>{t('oggi')}</span>
       </figcaption>
     </figure>
   );
@@ -100,7 +105,7 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
       setError('');
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) return onUnauthorized();
-      setError('Impossibile caricare le metriche.');
+      setError(t('Impossibile caricare le metriche.'));
     }
   }, [days, onUnauthorized]);
 
@@ -119,6 +124,14 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
     setSpinning(false);
   };
 
+  const { current, select } = useTenant();
+  const [others, setOthers] = useState<PortfolioItem[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api.portfolio().then((p) => alive && setOthers(p.filter((o) => o.id !== current.id && (o.counts?.actionRequired ?? 0) > 0))).catch(() => {});
+    return () => { alive = false; };
+  }, [current.id]);
+
   const sevMax = Math.max(1, ...(data?.bySeverity.map((s) => s.count) ?? [0]));
   const verdictMax = Math.max(1, ...(data?.byVerdict.map((v) => v.count) ?? [0]));
   const judged = data?.byVerdict.filter((v) => v.name !== 'none') ?? [];
@@ -133,16 +146,18 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
             Dashboard {mock && <span className="ml-1 rounded bg-yellow-400/30 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase text-yellow-700 dark:text-yellow-300">mock</span>}
           </h1>
           <div className="flex items-center gap-1">
-            <button aria-label="Aggiorna" onClick={manual} className="rounded-full p-2 text-ios-blue active:bg-black/5 dark:active:bg-white/10">
+            <button aria-label={t('Aggiorna')} onClick={manual} className="rounded-full p-2 text-ios-blue active:bg-black/5 dark:active:bg-white/10">
               <svg viewBox="0 0 24 24" className={`h-6 w-6 ${spinning || refreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg>
             </button>
-            <button aria-label="Esci" onClick={onLogout} className="rounded-full p-2 text-neutral-400 active:bg-black/5 dark:active:bg-white/10">
+            <LangToggle />
+            <button aria-label={t('Esci')} onClick={onLogout} className="rounded-full p-2 text-neutral-400 active:bg-black/5 dark:active:bg-white/10">
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5M21 12H9" /></svg>
             </button>
           </div>
         </div>
+        <TenantPicker onUnauthorized={onUnauthorized} />
         <div className="px-4 pb-3">
-          <div role="tablist" aria-label="Periodo" className="flex rounded-xl bg-black/5 p-0.5 dark:bg-white/10">
+          <div role="tablist" aria-label={t('Periodo')} className="flex rounded-xl bg-black/5 p-0.5 dark:bg-white/10">
             {PERIODS.map((p) => (
               <button
                 key={p}
@@ -154,7 +169,7 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
                 }}
                 className={`flex-1 rounded-[10px] py-1.5 text-sm font-medium transition ${days === p ? 'bg-white shadow-sm dark:bg-neutral-700' : 'text-neutral-500'}`}
               >
-                {p} giorni
+                {t('{n} giorni', { n: p })}
               </button>
             ))}
           </div>
@@ -166,53 +181,73 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
           className="flex items-center justify-center text-xs text-neutral-500 transition-[height]"
           style={{ height: pull, transitionDuration: pull === 0 || refreshing ? '200ms' : '0ms' }}
         >
-          {pull > 10 && (refreshing ? 'Aggiornamento…' : pull >= threshold ? 'Rilascia per aggiornare' : 'Trascina per aggiornare')}
+          {pull > 10 && (refreshing ? t('Aggiornamento…') : pull >= threshold ? t('Rilascia per aggiornare') : t('Trascina per aggiornare'))}
         </div>
 
         {error && (
           <div className="mt-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
-            {error} <button className="font-semibold underline" onClick={load}>Riprova</button>
+            {error} <button className="font-semibold underline" onClick={load}>{t('Riprova')}</button>
           </div>
         )}
-        {!data && !error && <p className="mt-10 text-center text-neutral-500">Caricamento…</p>}
+        {!data && !error && <p className="mt-10 text-center text-neutral-500">{t('Caricamento…')}</p>}
 
         {data && (
           <div className="space-y-3.5 pt-3">
             <div className="grid grid-cols-2 gap-3">
-              <Tile label="Da gestire" value={data.kpi.actionRequiredCases} sub="azione richiesta" tone={data.kpi.actionRequiredCases > 0 ? 'alert' : undefined} onClick={() => onOpenList('action')} />
-              <Tile label="Casi aperti" value={data.kpi.openCases} sub="in corso ora" onClick={() => onOpenList('active')} />
-              <Tile label={`Casi (${data.days} gg)`} value={data.kpi.totalCases} sub={`${data.kpi.escalatedCases} escalation · ${data.kpi.weekendCases} nel weekend`} onClick={() => onOpenList('all')} />
-              <Tile label="Impegno SOC" value={<>{data.kpi.effortHours}<span className="text-lg font-semibold text-neutral-400"> h</span></>} sub="ore di analisi Sophos" />
+              <Tile label={t('Da gestire')} value={data.kpi.actionRequiredCases} sub={t('azione richiesta')} tone={data.kpi.actionRequiredCases > 0 ? 'alert' : undefined} onClick={() => onOpenList('action')} />
+              <Tile label={t('Casi aperti')} value={data.kpi.openCases} sub={t('in corso ora')} onClick={() => onOpenList('active')} />
+              <Tile label={t('Casi ({n} gg)', { n: data.days })} value={data.kpi.totalCases} sub={t('{a} escalation · {b} nel weekend', { a: data.kpi.escalatedCases, b: data.kpi.weekendCases })} onClick={() => onOpenList('all')} />
+              {data.kpi.effortHours != null ? (
+                <Tile label={t('Impegno SOC')} value={<>{data.kpi.effortHours}<span className="text-lg font-semibold text-neutral-400"> h</span></>} sub={t('ore di analisi Sophos')} />
+              ) : (
+                <Tile label={t('Escalation')} value={data.kpi.escalatedCases} sub={t('casi passati agli analisti')} />
+              )}
             </div>
+
+            {others.length > 0 && (
+              <section className="rounded-2xl bg-red-500/10 p-3.5 ring-1 ring-red-500/30">
+                <h2 className="mb-1.5 text-sm font-semibold text-red-600 dark:text-red-400">{t('Altri clienti da gestire')}</h2>
+                <ul className="space-y-1">
+                  {others.map((o) => (
+                    <li key={o.id}>
+                      <button onClick={() => select(o.id)} className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1.5 text-left active:opacity-60">
+                        <span className="truncate text-sm font-medium">{o.name}</span>
+                        <span className="shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">{o.counts!.actionRequired} {t('da gestire')}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             {data.attention.length > 0 && (
               <section>
-                <h2 className="mb-2 px-1 text-sm font-semibold text-red-600 dark:text-red-400">Richiedono la tua azione</h2>
+                <h2 className="mb-2 px-1 text-sm font-semibold text-red-600 dark:text-red-400">{t('Richiedono la tua azione')}</h2>
                 <div className="space-y-2.5">
                   {data.attention.map((c) => <CaseCard key={c.id} c={c} onOpen={onOpenCase} />)}
                 </div>
               </section>
             )}
 
-            <Card title="Andamento" aside={`${data.kpi.totalCases} casi`}>
+            <Card title={t('Andamento')} aside={t('{n} casi', { n: data.kpi.totalCases })}>
               <Trend daily={data.daily} weekly={data.days > 31} />
             </Card>
 
-            <Card title="Per severità">
+            <Card title={t('Per severità')}>
               {data.bySeverity.map((s) => (
                 <BarRow key={s.key} label={SEVERITY_LABEL[s.key]} count={s.count} max={sevMax} color={SEVERITY_BAR[s.key]} />
               ))}
             </Card>
 
-            <Card title="Esito delle analisi" aside={judgedTotal > 0 ? `falsi positivi ${Math.round((fp / judgedTotal) * 100)}%` : undefined}>
-              {data.byVerdict.length === 0 && <p className="text-sm text-neutral-500">Nessun caso nel periodo.</p>}
+            <Card title={t('Esito delle analisi')} aside={judgedTotal > 0 ? t('falsi positivi {n}%', { n: Math.round((fp / judgedTotal) * 100) }) : undefined}>
+              {data.byVerdict.length === 0 && <p className="text-sm text-neutral-500">{t('Nessun caso nel periodo.')}</p>}
               {data.byVerdict.map((v) => (
                 <BarRow key={v.name} label={verdictLabel(v)} count={v.count} max={verdictMax} color={VERDICT_BAR[v.name] ?? 'bg-neutral-400'} />
               ))}
             </Card>
 
             <p className="pb-2 text-center text-[11px] text-neutral-400">
-              Aggiornato alle {new Date(data.generatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+              {t('Aggiornato alle')} {new Date(data.generatedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         )}

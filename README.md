@@ -1,91 +1,102 @@
 # Sophos MDR Mobile
 
-PWA mobile-first (pensata per iPhone/Safari) per consultare e rispondere ai casi **Sophos MDR** tramite le Cases GraphQL API di Sophos. Backend Node/Express (BFF) + frontend React/Vite/Tailwind, in **un unico container**. I segreti Sophos restano nel backend; il token OAuth2 è tenuto in cache in memoria e rinnovato prima della scadenza.
+A mobile-first PWA (designed for iPhone/Safari) to browse, monitor and answer **Sophos MDR** cases through Sophos' Cases GraphQL API and the Sophos Central REST API. Node/Express backend (BFF) + React/Vite/Tailwind frontend, shipped in **a single container**. Sophos secrets stay in the backend; the OAuth2 token is cached in memory and renewed before it expires. The UI is available in English and Italian.
 
-Funzioni:
-- **Dashboard** (home): casi da gestire/aperti, casi e ore di impegno SOC nel periodo (7/30/90 giorni), andamento, severità ed esito delle analisi (% falsi positivi).
-- Lista casi con filtri e pull-to-refresh; dettaglio con key findings (Markdown), detection, tecniche MITRE, host e utenti coinvolti.
-- **Spiegazione AI** (Sophos AI, solo in inglese): riassunto del caso e analisi per singola detection.
-- **Classificazione del caso**: verdetto (falso positivo, vero positivo benigno/malevolo, inconcludente), motivazione, nota e chiusura, con conferma esplicita.
-- Chat con gli analisti e invio commenti (scorciatoia `@sophos`), login con PIN, dark mode, modalità demo con dati finti.
+Features:
+- **Dashboard** (home): cases to handle / open, cases and SOC effort hours over the period (7/30/90 days), trend, severity and analysis outcome (% false positives).
+- Case list with filters and pull-to-refresh; case detail with key findings (Markdown), detections, MITRE techniques, involved hosts and users.
+- **AI explanation** (Sophos AI, English only): case summary and per-detection analysis.
+- **Case classification**: verdict (false positive, benign/malicious true positive, inconclusive), reason, note and closing, with explicit confirmation.
+- Chat with the analysts and comment posting (`@sophos` shortcut), PIN login, dark mode, demo mode with fake data.
+- **Multi-tenant** (Partner accounts): customer picker with a portfolio view (cases to handle per customer). Customers already on Fusion get every feature; customers still on **classic Sophos Central** are **read-only** (cases, detections, MITRE, entities and activity timeline, but no comments, classification or AI). Unreachable customers (not delegated / not on Fusion) are listed with the reason and re-checked every 30 minutes or on demand.
+- **Bilingual UI** (English / Italian): follows the browser language, switchable in the app or with `?lang=en` / `?lang=it`.
 
-## Screenshot
+## Screenshots
 
-Modalità demo (`MOCK_MODE=true`): i dati sono inventati.
+Demo mode (`MOCK_MODE=true`): all data is made up.
 
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/01-dashboard.jpg" width="220" alt="Dashboard"><br><sub>Dashboard</sub></td>
-    <td align="center"><img src="docs/screenshots/02-casi.jpg" width="220" alt="Lista casi"><br><sub>Lista casi</sub></td>
-    <td align="center"><img src="docs/screenshots/03-dettaglio.jpg" width="220" alt="Dettaglio caso"><br><sub>Dettaglio caso</sub></td>
+    <td align="center"><img src="docs/screenshots/02-casi.jpg" width="220" alt="Case list"><br><sub>Case list</sub></td>
+    <td align="center"><img src="docs/screenshots/03-dettaglio.jpg" width="220" alt="Case detail"><br><sub>Case detail</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/04-classifica.jpg" width="220" alt="Classifica il caso"><br><sub>Classificazione</sub></td>
-    <td align="center"><img src="docs/screenshots/05-spiegazione-ai.jpg" width="220" alt="Spiegazione AI"><br><sub>Spiegazione AI</sub></td>
-    <td align="center"><img src="docs/screenshots/06-dashboard-dark.jpg" width="220" alt="Dashboard in modalità scura"><br><sub>Modalità scura</sub></td>
+    <td align="center"><img src="docs/screenshots/04-classifica.jpg" width="220" alt="Classify the case"><br><sub>Classification</sub></td>
+    <td align="center"><img src="docs/screenshots/05-spiegazione-ai.jpg" width="220" alt="AI explanation"><br><sub>AI explanation</sub></td>
+    <td align="center"><img src="docs/screenshots/06-dashboard-dark.jpg" width="220" alt="Dashboard in dark mode"><br><sub>Dark mode</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/07-clienti.jpg" width="220" alt="Customer picker"><br><sub>Customer picker</sub></td>
+    <td align="center"><img src="docs/screenshots/08-classic-timeline.jpg" width="220" alt="Classic case timeline"><br><sub>Classic case timeline (read-only)</sub></td>
+    <td></td>
   </tr>
 </table>
 
-## Avvio rapido (Docker)
+## Quick start (Docker)
 
 ```bash
-cp .env.example .env      # imposta APP_ACCESS_PIN e SESSION_SECRET; MOCK_MODE=true per la demo
+cp .env.example .env      # set APP_ACCESS_PIN and SESSION_SECRET; MOCK_MODE=true for the demo
 docker compose up -d --build
 ```
 
-Di default l'app ascolta su `127.0.0.1:3456`. Per usarla su iPhone serve **HTTPS** (cookie `Secure`, installazione PWA): pubblicala con un reverse proxy o un tunnel che termini TLS e inoltri a `127.0.0.1:3456` (Caddy, nginx, Cloudflare Tunnel, ecc.), con `TRUST_PROXY=true` nel `.env`. Il proxy deve inviare `X-Forwarded-Proto`.
+By default the app listens on `127.0.0.1:3456`. To use it on an iPhone you need **HTTPS** (`Secure` cookie, PWA installation): publish it behind a reverse proxy or tunnel that terminates TLS and forwards to `127.0.0.1:3456` (Caddy, nginx, Cloudflare Tunnel, etc.), with `TRUST_PROXY=true` in `.env`. The proxy must send `X-Forwarded-Proto`.
 
-### Aggiungere alla Home di iPhone
-Safari → Condividi → **Aggiungi alla schermata Home**: l'app si apre a schermo intero.
+### Add to the iPhone Home Screen
+Safari → Share → **Add to Home Screen**: the app opens full screen.
 
-## Credenziali Sophos
+## Sophos credentials
 
-Crea una **API credential** in Sophos Central/Fusion e imposta nel `.env`: `MOCK_MODE=false`, `SOPHOS_CLIENT_ID`, `SOPHOS_CLIENT_SECRET` (e `SOPHOS_TENANT_ID` solo per credenziali Partner/Organization).
+Create an **API credential** in Sophos Central/Fusion and set in `.env`: `MOCK_MODE=false`, `SOPHOS_CLIENT_ID`, `SOPHOS_CLIENT_SECRET` (and `SOPHOS_TENANT_ID` only for Partner/Organization credentials).
 
-Permessi: per leggere i casi basta un ruolo di sola lettura; per **commentare**, **classificare/chiudere** i casi serve `Investigation:update` (e `mention_partner` per `@sophos`). Per host e utenti l'app legge le detection (`Alert:read`); con `Agent:read` mostra anche lo stato di isolamento dell'host. Scegli il ruolo con meno privilegi che includa questi permessi ed evita ruoli amministrativi: puoi leggere i permessi effettivi della tua credenziale con la query `authzPermissions`.
+**Multiple customers:** you can define up to 6 credentials (`SOPHOS_CLIENT_ID_2` / `SOPHOS_CLIENT_SECRET_2` …), for example a Partner credential from the Partner Dashboard. At startup the app lists the tenants visible to each credential (`whoami` and `/partner/v1/tenants`), tries Fusion first and then the classic Sophos Central Cases API for each tenant, and uses the connection that returns cases. Nothing is written to disk: in-memory caches only.
 
-Il backend usa solo: lista/dettaglio casi, commenti, `updateCase` (classificazione/chiusura), evidenze, detection (alert), metriche (`caseSummaryMetrics`, `casesAggregation`) e le query AI `generativeAICaseSummary` / `generativeAIDetectionAnalysis`.
+Permissions: a read-only role is enough to read cases; to **comment** and **classify/close** cases you need `Investigation:update` (and `mention_partner` for `@sophos`). For hosts and users the app reads detections (`Alert:read`); with `Agent:read` it also shows the host isolation status. Pick the role with the fewest privileges that includes these permissions and avoid administrative roles: you can read your credential's effective permissions with the `authzPermissions` query.
 
-Note sull'integrazione (endpoint `https://api.taegis.sophos.com/graphql`, header `Authorization` + `X-Tenant-ID`):
-- Il tipo `Case` espone solo gli ID delle evidenze: detection, MITRE, host e utenti si ricavano dagli alert (`detectionRetrieveById`), con cache di 10 minuti. Senza detection (e senza `Agent:read`) host e utente non sono disponibili.
-- Gli stati primari sono per tenant (`new`, `awaiting_sophos_assignment`, `in_progress`, `customer_action_required`, `on_hold`, `closed`): la mappatura è in `toStatus` (`server/src/services/sophosQueries.ts`).
-- Le risposte AI di Sophos sono solo in inglese; verdetti e motivazioni sono letti a runtime (`casePrimaryVerdicts`, `caseSecondaryVerdicts`).
-- La classificazione scrive su Sophos con una sola `updateCase` (verdetto, motivazione, nota e, se richiesto, stato chiuso): compatibilità e requisiti sono validati da Sophos e l'errore viene mostrato.
-- Nessun flag "analista MDR" sui commenti: i tuoi sono riconosciuti da `authorId` uguale al client id API (oppure `SOPHOS_MY_AUTHOR_IDS`).
-- Il backend Sophos risponde a volte con errori transitori (`conn busy`) se si combinano più query: caso e commenti sono richieste separate e ci sono tentativi automatici.
-- Filtri e ordinamento sono applicati dal backend (ultimi 300 casi), non via CQL.
+The backend only uses: case list/detail, comments, `updateCase` (classification/closing), evidence, detections (alerts), metrics (`caseSummaryMetrics`, `casesAggregation`) and the AI queries `generativeAICaseSummary` / `generativeAIDetectionAnalysis`.
 
-## Sviluppo locale
+Integration notes (endpoint `https://api.taegis.sophos.com/graphql`, headers `Authorization` + `X-Tenant-ID`):
+- The `Case` type only exposes evidence IDs: detections, MITRE, hosts and users are derived from the alerts (`detectionRetrieveById`), cached for 10 minutes. Without detections (and without `Agent:read`) hosts and users are not available.
+- Primary statuses are per tenant (`new`, `awaiting_sophos_assignment`, `in_progress`, `customer_action_required`, `on_hold`, `closed`): the mapping lives in `toStatus` (`server/src/services/sophosQueries.ts`).
+- Sophos AI answers are English only; verdicts and reasons are read at runtime (`casePrimaryVerdicts`, `caseSecondaryVerdicts`).
+- Classification writes to Sophos with a single `updateCase` (verdict, reason, note and, if requested, closed status): compatibility and requirements are validated by Sophos and the error is shown.
+- Comments carry no "MDR analyst" flag: yours are recognized by an `authorId` equal to the API client id (or `SOPHOS_MY_AUTHOR_IDS`).
+- The Sophos backend sometimes returns transient errors (`conn busy`) when several queries are combined: the case and its comments are separate requests, with automatic retries.
+- Filters and sorting are applied by the backend (latest 300 cases), not via CQL.
+- Classic Sophos Central: `{apiHost}/cases/v1/cases` (page size max 50) with `/detections`, `/impacted-entities`, `/mitre-attack-summary`; there are no comments, verdicts or AI. The timeline uses the undocumented `/activities` endpoint and may change.
 
-Richiede Node 20+.
+## Local development
+
+Requires Node 20+.
 
 ```bash
 npm run install:all
-npm run icons                 # genera le icone PNG (una volta)
+npm run icons                 # generate the PNG icons (once)
 cp .env.example .env          # MOCK_MODE=true
-npm run dev:server            # API su :3456
-npm run dev:web               # Vite su :5173 (proxy /api)
+npm run dev:server            # API on :3456
+npm run dev:web               # Vite on :5173 (/api proxy)
 ```
 
-Build di produzione senza Docker: `npm run build && NODE_ENV=production npm start` (serve `web/dist`).
+Production build without Docker: `npm run build && NODE_ENV=production npm start` (serves `web/dist`).
 
-## Variabili `.env`
+## `.env` variables
 
-| Variabile | Descrizione |
+| Variable | Description |
 |---|---|
-| `APP_ACCESS_PIN` | PIN/password di accesso (obbligatoria) |
-| `SESSION_SECRET` | Chiave firma cookie (se vuota le sessioni decadono al riavvio) |
-| `MOCK_MODE` | `true` = dati finti, commenti in memoria |
-| `SOPHOS_CLIENT_ID` / `SOPHOS_CLIENT_SECRET` | Credenziali API Sophos |
-| `SOPHOS_TENANT_ID` | Solo per credenziali Partner/Organization |
-| `SOPHOS_MY_AUTHOR_IDS` | authorId da mostrare come "tuoi" nella chat |
-| `TRUST_PROXY` | `true` dietro reverse proxy HTTPS |
-| `COOKIE_SECURE` | Default `auto` (Secure se la richiesta è HTTPS) |
-| `BIND_IP` | IP su cui il compose pubblica la porta (default `127.0.0.1`) |
-| `PORT` | Porta (default 3456) |
+| `APP_ACCESS_PIN` | Access PIN/password (required) |
+| `SESSION_SECRET` | Cookie signing key (if empty, sessions are lost on restart) |
+| `MOCK_MODE` | `true` = fake data, in-memory comments |
+| `SOPHOS_CLIENT_ID` / `SOPHOS_CLIENT_SECRET` | Sophos API credentials |
+| `SOPHOS_CLIENT_ID_2` / `SOPHOS_CLIENT_SECRET_2` … `_6` | Additional credentials (e.g. Partner, multi-customer) |
+| `SOPHOS_TENANT_ID` | Only for Partner/Organization credentials |
+| `SOPHOS_MY_AUTHOR_IDS` | authorIds to show as "yours" in the chat |
+| `TRUST_PROXY` | `true` behind an HTTPS reverse proxy |
+| `COOKIE_SECURE` | Default `auto` (Secure if the request is HTTPS) |
+| `BIND_IP` | IP the compose file publishes the port on (default `127.0.0.1`) |
+| `PORT` | Port (default 3456) |
 
-## Sicurezza
-- PIN confrontato in tempo costante, rate limit 5 errori/15 min per IP, cookie firmato HMAC, `HttpOnly` e `SameSite=Lax`.
-- Le scritture API accettano solo `application/json`; CSP restrittiva; risposte `/api` con `no-store`; il service worker non mette mai in cache le API.
-- Non esporre l'app su Internet senza un livello di accesso ulteriore: il PIN è l'unica protezione applicativa.
-- Il `.env` contiene i segreti: non committarlo (è in `.gitignore`).
+## Security
+- PIN compared in constant time, rate limit of 5 failures/15 min per IP, HMAC-signed cookie, `HttpOnly` and `SameSite=Lax`.
+- API writes only accept `application/json`; strict CSP; `/api` responses are `no-store`; the service worker never caches the API.
+- Do not expose the app on the Internet without an additional access layer: the PIN is the only application-level protection.
+- `.env` contains secrets: never commit it (it is in `.gitignore`).

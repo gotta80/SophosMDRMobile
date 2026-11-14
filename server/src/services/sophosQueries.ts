@@ -1,3 +1,4 @@
+import { currentLang } from '../lang';
 /**
  * Query / mutation GraphQL per Sophos Cases GraphQL (schema cases-v2) + normalizzatori.
  * Fonte: https://developer.sophos.com/graphql/cases-v2/  (schema: /assets/graphql/cases-v2.graphql)
@@ -273,7 +274,7 @@ export function normalizeComment(c: Raw, myAuthorIds: Set<string>): CaseComment 
     body: String(c.comment ?? ''),
     createdAt: String(c.createdAt ?? new Date().toISOString()),
     author: {
-      name: mine ? 'Tu' : c.isInternal ? 'Sophos (interno)' : 'Sophos MDR',
+      name: mine ? 'Tu' : c.isInternal ? (currentLang() === 'en' ? 'Sophos (internal)' : 'Sophos (interno)') : 'Sophos MDR',
       role: mine ? 'customer' : 'analyst',
     },
   };

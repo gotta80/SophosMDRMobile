@@ -1,3 +1,5 @@
+import { t } from '../lib/i18n';
+
 export type Tab = 'dashboard' | 'cases';
 
 const Icon = ({ tab }: { tab: Tab }) =>
@@ -11,10 +13,10 @@ const Icon = ({ tab }: { tab: Tab }) =>
 export default function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   const items: { key: Tab; label: string }[] = [
     { key: 'dashboard', label: 'Dashboard' },
-    { key: 'cases', label: 'Casi' },
+    { key: 'cases', label: t('Casi') },
   ];
   return (
-    <nav className="z-20 flex border-t border-black/5 bg-ios-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl dark:border-white/10" aria-label="Navigazione principale">
+    <nav className="z-20 flex border-t border-black/5 bg-ios-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl dark:border-white/10" aria-label={t('Navigazione principale')}>
       {items.map((i) => (
         <button
           key={i.key}

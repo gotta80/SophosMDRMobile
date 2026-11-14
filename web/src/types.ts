@@ -34,6 +34,8 @@ export interface CaseDetails extends CaseSummary {
   summary: string;
   keyFindings?: string;
   detectionIds?: string[];
+  /** Cronologia (solo casi classic: l'API REST non ha commenti, ma ha il registro attività) */
+  activities?: Activity[];
   entities: Entity[];
   detections: Detection[];
   mitre: { id: string; name: string; tactic?: string }[];
@@ -59,7 +61,7 @@ export interface DashboardData {
   kpi: {
     totalCases: number;
     actionRequiredCases: number;
-    effortHours: number;
+    effortHours: number | null;
     escalatedCases: number;
     weekendCases: number;
     openCases: number;
@@ -69,4 +71,33 @@ export interface DashboardData {
   byStatus: { key: CaseStatus; count: number }[];
   daily: { date: string; count: number }[];
   attention: CaseSummary[];
+}
+
+export interface Capabilities { comments: boolean; classify: boolean; ai: boolean }
+export type TenantKind = 'fusion' | 'classic';
+
+export interface TenantInfo {
+  id: string;
+  name: string;
+  region?: string;
+  status: 'ok' | 'unavailable' | 'unknown';
+  kind?: TenantKind;
+  capabilities?: Capabilities;
+  reason?: 'access_denied' | 'no_service' | 'error';
+  caseCount?: number;
+}
+
+export interface PortfolioItem extends TenantInfo {
+  counts?: { total: number; open: number; actionRequired: number };
+}
+
+export interface ActivityChange { label: string; from?: string; to?: string }
+export interface Activity {
+  id: string;
+  at: string;
+  who: string;
+  kind: 'note' | 'message' | 'status' | 'action' | 'file' | 'created' | 'change' | 'ai' | 'other';
+  text?: string;
+  changes?: ActivityChange[];
+  minor?: boolean;
 }

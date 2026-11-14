@@ -1,5 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../api';
+import { t } from '../lib/i18n';
+import LangToggle from './LangToggle';
 
 export default function Login({ onSuccess }: { onSuccess: () => void }) {
   const [pin, setPin] = useState('');
@@ -16,7 +18,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
       onSuccess();
     } catch (err) {
       const e2 = err as ApiError;
-      setError(e2.status === 429 ? `Troppi tentativi. Riprova tra ${Math.ceil((e2.retryAfter ?? 900) / 60)} min.` : 'PIN non valido');
+      setError(e2.status === 429 ? t('Troppi tentativi. Riprova tra {n} min.', { n: Math.ceil((e2.retryAfter ?? 900) / 60) }) : t('PIN non valido'));
       setPin('');
     } finally {
       setBusy(false);
@@ -24,12 +26,13 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-center px-8 pt-safe pb-safe">
+    <main className="relative flex h-full flex-col items-center justify-center overflow-y-auto px-8 pt-safe pb-safe">
+      <LangToggle className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))]" />
       <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-[22px] bg-ios-blue text-white shadow-lg">
         <svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor"><path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3z" /></svg>
       </div>
       <h1 className="mb-1 text-2xl font-bold">Sophos MDR</h1>
-      <p className="mb-8 text-sm text-neutral-500">Inserisci il PIN di accesso</p>
+      <p className="mb-8 text-sm text-neutral-500">{t('Inserisci il PIN di accesso')}</p>
       <form onSubmit={submit} className="w-full max-w-xs">
         <input
           type="password"
@@ -46,7 +49,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
           disabled={busy || !pin}
           className="mt-2 w-full rounded-xl bg-ios-blue py-3 font-semibold text-white active:opacity-80 disabled:opacity-40"
         >
-          {busy ? 'Verifica…' : 'Accedi'}
+          {busy ? t('Verifica…') : t('Accedi')}
         </button>
       </form>
     </main>

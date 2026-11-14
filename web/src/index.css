@@ -11,7 +11,12 @@
   :root { --bg-rgb: 0 0 0; }
 }
 
-html, body, #root { min-height: 100%; }
+/*
+ * L'app è ancorata all'area visibile (position: fixed) e la pagina intera non scorre: ogni schermata scorre al suo interno.
+ * Evita su iOS i calcoli diversi di 100dvh / safe-area prima e dopo il primo trascinamento (barra in basso più alta all'apertura).
+ */
+html, body { height: 100%; overflow: hidden; }
+#root { position: fixed; inset: 0; overflow: hidden; }
 body {
   margin: 0;
   background: var(--bg);

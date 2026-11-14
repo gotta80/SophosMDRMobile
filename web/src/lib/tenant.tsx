@@ -1,0 +1,124 @@
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api, ApiError, setApiTenant } from '../api';
+import { t } from './i18n';
+import type { Capabilities, TenantInfo } from '../types';
+
+interface Ctx {
+  tenants: TenantInfo[];
+  probing: boolean;
+  current: TenantInfo;
+  caps: Capabilities;
+  select: (id: string) => void;
+  recheck: () => Promise<void>;
+}
+
+const TenantCtx = createContext<Ctx | null>(null);
+export const useTenant = () => {
+  const c = useContext(TenantCtx);
+  if (!c) throw new Error('TenantProvider mancante');
+  return c;
+};
+
+const FULL: Capabilities = { comments: true, classify: true, ai: true };
+const KEY = 'tenant';
+const read = () => {
+  try {
+    return localStorage.getItem(KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Elenco dei clienti e cliente selezionato (ricordato sul dispositivo). Mentre il server verifica i clienti
+ * ("probing") l'elenco viene riletto ogni pochi secondi. I figli si montano solo con un cliente già scelto, e
+ * vengono rimontati al cambio (key), così ogni schermata ricarica i dati del cliente giusto.
+ */
+export function TenantProvider({ onUnauthorized, children }: { onUnauthorized: () => void; children: ReactNode }) {
+  const [tenants, setTenants] = useState<TenantInfo[] | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [chosen, setChosen] = useState(read);
+  const [error, setError] = useState(false);
+  const timer = useRef<number>();
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.tenants();
+      setTenants(r.tenants);
+      setProbing(r.probing);
+      setError(false);
+      return r.probing;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) onUnauthorized();
+      else setError(true);
+      return false;
+    }
+  }, [onUnauthorized]);
+
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      const again = await load();
+      if (alive && again) timer.current = window.setTimeout(tick, 4000);
+    };
+    tick();
+    return () => {
+      alive = false;
+      window.clearTimeout(timer.current);
+    };
+  }, [load]);
+
+  const recheck = useCallback(async () => {
+    await api.refreshTenants().catch(() => {});
+    setProbing(true);
+    window.clearTimeout(timer.current);
+    const tick = async () => {
+      const again = await load();
+      if (again) timer.current = window.setTimeout(tick, 3000);
+    };
+    window.setTimeout(tick, 1200);
+  }, [load]);
+
+  const current = useMemo(() => {
+    if (!tenants) return null;
+    const ok = tenants.filter((t) => t.status === 'ok');
+    return ok.find((t) => t.id === chosen) ?? ok[0] ?? null;
+  }, [tenants, chosen]);
+
+  // imposta subito l'header (prima che i figli lancino le loro richieste)
+  setApiTenant(current?.id ?? '');
+
+  const select = useCallback((id: string) => {
+    try {
+      localStorage.setItem(KEY, id);
+    } catch {
+      /* ignora */
+    }
+    setChosen(id);
+  }, []);
+
+  if (!tenants && !error) return <div className="flex h-full items-center justify-center text-neutral-500">{t('Caricamento clienti…')}</div>;
+  if (error && !tenants)
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
+        <p className="text-neutral-500">{t("Impossibile caricare l'elenco dei clienti.")}</p>
+        <button className="rounded-xl bg-ios-blue px-4 py-2 font-semibold text-white" onClick={load}>{t('Riprova')}</button>
+      </div>
+    );
+  if (!current)
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
+        <p className="font-semibold">{probing ? t('Verifica dei clienti in corso…') : t('Nessun cliente accessibile')}</p>
+        <p className="text-sm text-neutral-500">
+          {probing ? t('Può richiedere qualche secondo.') : t('Controlla le credenziali Sophos o la delega dei clienti al partner.')}
+        </p>
+        {!probing && <button className="rounded-xl bg-ios-blue px-4 py-2 font-semibold text-white" onClick={recheck}>{t('Ricontrolla')}</button>}
+      </div>
+    );
+
+  return (
+    <TenantCtx.Provider value={{ tenants: tenants!, probing, current, caps: current.capabilities ?? FULL, select, recheck }}>
+      <div key={current.id} className="contents">{children}</div>
+    </TenantCtx.Provider>
+  );
+}
