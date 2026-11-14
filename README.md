@@ -2,6 +2,8 @@
 
 A mobile-first PWA (designed for iPhone/Safari) to browse, monitor and answer **Sophos MDR** cases through Sophos' Cases GraphQL API and the Sophos Central REST API. Node/Express backend (BFF) + React/Vite/Tailwind frontend, shipped in **a single container**. Sophos secrets stay in the backend; the OAuth2 token is cached in memory and renewed before it expires. The UI is available in English and Italian.
 
+> **Disclaimer:** this is an independent, community project. It is **not affiliated with, endorsed by, or sponsored by Sophos Ltd.** Sophos, Sophos Central, Sophos Fusion and Sophos MDR are trademarks of Sophos Ltd. The app only uses the publicly documented Sophos APIs with your own credentials.
+
 Features:
 - **Dashboard** (home): cases to handle / open, cases and SOC effort hours over the period (7/30/90 days), trend, severity and analysis outcome (% false positives).
 - Case list with filters and pull-to-refresh; case detail with key findings (Markdown), detections, MITRE techniques, involved hosts and users.
@@ -100,3 +102,7 @@ Production build without Docker: `npm run build && NODE_ENV=production npm start
 - API writes only accept `application/json`; strict CSP; `/api` responses are `no-store`; the service worker never caches the API.
 - Do not expose the app on the Internet without an additional access layer: the PIN is the only application-level protection.
 - `.env` contains secrets: never commit it (it is in `.gitignore`).
+
+## License
+
+[MIT](LICENSE) © 2026 gotta80
