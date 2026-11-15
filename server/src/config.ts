@@ -53,9 +53,9 @@ export const config = {
 
 export function validateConfig(): string[] {
   const errors: string[] = [];
-  if (!config.accessPin) errors.push('APP_ACCESS_PIN mancante: impostalo nel file .env');
+  if (!config.accessPin) errors.push('APP_ACCESS_PIN is missing: set it in the .env file');
   if (!config.mock && config.sophos.connections.length === 0) {
-    errors.push('SOPHOS_CLIENT_ID / SOPHOS_CLIENT_SECRET mancanti (oppure usa MOCK_MODE=true)');
+    errors.push('SOPHOS_CLIENT_ID / SOPHOS_CLIENT_SECRET are missing (or use MOCK_MODE=true)');
   }
   return errors;
 }

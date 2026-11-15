@@ -41,7 +41,7 @@ export function t(it: string, vars?: Record<string, string | number>): string {
   let s = it;
   if (lang === 'en') {
     s = EN[it] ?? it;
-    if (EN[it] === undefined && import.meta.env?.DEV) console.warn('[i18n] manca la traduzione:', it);
+    if (EN[it] === undefined && import.meta.env?.DEV) console.warn('[i18n] missing translation:', it);
   }
   if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
   return s;

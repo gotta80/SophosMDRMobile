@@ -17,7 +17,7 @@ interface Ctx {
 const TenantCtx = createContext<Ctx | null>(null);
 export const useTenant = () => {
   const c = useContext(TenantCtx);
-  if (!c) throw new Error('TenantProvider mancante');
+  if (!c) throw new Error('TenantProvider is missing');
   return c;
 };
 

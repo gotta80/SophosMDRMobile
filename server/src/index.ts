@@ -29,7 +29,7 @@ import { SophosError } from './services/sophosConnection';
 
 const errors = validateConfig();
 if (errors.length) {
-  console.error('Configurazione non valida:\n - ' + errors.join('\n - '));
+  console.error('Invalid configuration:\n - ' + errors.join('\n - '));
   process.exit(1);
 }
 
@@ -262,7 +262,7 @@ if (fs.existsSync(path.join(config.staticDir, 'index.html'))) {
     res.sendFile(path.join(config.staticDir, 'index.html'));
   });
 } else {
-  console.warn(`Frontend non trovato in ${config.staticDir} (modalità solo API / dev con Vite).`);
+  console.warn(`Frontend not found in ${config.staticDir} (API-only mode / dev with Vite).`);
 }
 
 // ------------------------------------------------------------------ errors
@@ -277,6 +277,6 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(config.port, config.host, () => {
   console.log(
-    `Sophos MDR Mobile in ascolto su http://${config.host}:${config.port} (mock=${config.mock}, connessioni=${config.sophos.connections.length}, trustProxy=${config.trustProxy})`,
+    `Sophos MDR Mobile listening on http://${config.host}:${config.port} (mock=${config.mock}, connections=${config.sophos.connections.length}, trustProxy=${config.trustProxy})`,
   );
 });

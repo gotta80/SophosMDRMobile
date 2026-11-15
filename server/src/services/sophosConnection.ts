@@ -57,7 +57,7 @@ export class Connection {
         scope: 'token',
       }),
     });
-    if (!res.ok) throw new SophosError(`Autenticazione Sophos fallita (connessione ${this.index}, HTTP ${res.status})`, 502);
+    if (!res.ok) throw new SophosError(`Sophos authentication failed (connection ${this.index}, HTTP ${res.status})`, 502);
     const json = (await res.json()) as { access_token: string; expires_in: number };
     this.token = { value: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
     return this.token.value;
@@ -67,7 +67,7 @@ export class Connection {
     if (this.who) return this.who;
     const token = await this.getToken();
     const res = await fetch(config.sophos.whoamiUrl, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new SophosError(`whoami Sophos fallito (HTTP ${res.status})`);
+    if (!res.ok) throw new SophosError(`Sophos whoami failed (HTTP ${res.status})`);
     return (this.who = (await res.json()) as Whoami);
   }
 
@@ -82,7 +82,7 @@ export class Connection {
       const res = await fetch(`${who.apiHosts.global}/${who.idType}/v1/tenants?pageTotal=true&pageSize=100&page=${page}`, {
         headers: { Authorization: `Bearer ${token}`, [idHeader]: who.id },
       });
-      if (!res.ok) throw new SophosError(`Elenco tenant fallito (HTTP ${res.status})`);
+      if (!res.ok) throw new SophosError(`Tenant list failed (HTTP ${res.status})`);
       const j = (await res.json()) as { items?: { id: string; name?: string; showAs?: string; dataRegion?: string; apiHost?: string }[]; pages?: { total?: number } };
       for (const t of j.items ?? []) out.push({ id: t.id, name: t.name || t.showAs || t.id, dataRegion: t.dataRegion, apiHost: t.apiHost });
       if (page >= (j.pages?.total ?? 1)) break;
@@ -100,7 +100,7 @@ export class Connection {
       await this.getToken(true);
       return this.rest<T>(apiHost, tenantId, path, false);
     }
-    if (res.status === 403) throw new SophosError('not_authorized: accesso negato alle API Central del cliente', 403);
+    if (res.status === 403) throw new SophosError('not_authorized: access denied to the Central APIs of the customer', 403);
     if (res.status === 404) throw new SophosError('not_found', 404);
     if (!res.ok) throw new SophosError(`Central HTTP ${res.status}`);
     return (await res.json()) as T;

@@ -178,7 +178,7 @@ export class Registry {
           this.tenants.set(c.id, e);
         }
       } catch (err) {
-        console.error(`[registry] connessione ${conn.index}:`, err instanceof Error ? err.message : err);
+        console.error(`[registry] connection ${conn.index}:`, err instanceof Error ? err.message : err);
       }
       if (conn.index === 1) this.resolveReady();
     }
@@ -205,7 +205,7 @@ export class Registry {
         try {
           await this.settleOne(e);
         } catch (err) {
-          console.error(`[registry] licenze ${e.name}:`, err instanceof Error ? err.message : err);
+          console.error(`[registry] licenses ${e.name}:`, err instanceof Error ? err.message : err);
         }
       }
     };
