@@ -13,7 +13,7 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   mock: bool(process.env.MOCK_MODE, false),
 
-  /** Dietro Tailscale Serve / reverse proxy: legge X-Forwarded-* (req.secure, req.ip). */
+  /** Behind a reverse proxy: legge X-Forwarded-* (req.secure, req.ip). */
   trustProxy: bool(process.env.TRUST_PROXY, false),
 
   accessPin: process.env.APP_ACCESS_PIN || '',
@@ -21,7 +21,7 @@ export const config = {
   sessionDays: Number(process.env.SESSION_DAYS || 30),
   /**
    * Cookie "Secure": 'auto' (default) = only if the request is HTTPS (req.secure, which with TRUST_PROXY
-   * reads X-Forwarded-Proto from Tailscale). This way it works both from the LAN over HTTP and from the tailnet over HTTPS.
+   * reads X-Forwarded-Proto from the proxy). This way it works both from the LAN over HTTP and through the HTTPS proxy.
    * COOKIE_SECURE=true/false forces the value.
    */
   cookieSecure: ((v) => (v === undefined || v.trim() === '' || v.trim() === 'auto' ? 'auto' : bool(v)))(
