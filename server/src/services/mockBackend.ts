@@ -36,7 +36,7 @@ function demoActivitiesEn(): Activity[] {
 }
 
 /** Demo licenses (Sophos product names are not translated). Dates are relative to today. */
-function demoLicenses(kind: TenantKind | 'none'): TenantLicenses {
+function demoLicenses(kind: TenantKind | 'none' | 'inactive'): TenantLicenses {
   const d = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
   const mk = (id: string, code: string, name: string, type: LicenseItem['type'], extra: Partial<LicenseItem> = {}): LicenseItem => ({
     id,
@@ -48,7 +48,13 @@ function demoLicenses(kind: TenantKind | 'none'): TenantLicenses {
     ...extra,
   });
   const licenses: LicenseItem[] =
-    kind === 'none'
+    kind === 'inactive'
+      ? [
+          mk('l1', 'XDR-MSP', 'Sophos XDR - User MSP Monthly', 'usage', { usage: 0, startDate: d(-400) }),
+          mk('l2', 'NDR-MSP', 'Central Network Detection and Response - MSP Monthly', 'usage', { usage: 0, startDate: d(-400) }),
+          mk('l3', 'CEMA-MSP', 'Sophos Email MSP Monthly', 'usage', { usage: 0, startDate: d(-400) }),
+        ]
+      : kind === 'none'
       ? [
           mk('l1', 'CIXA', 'Sophos Endpoint - User', 'term', { quantity: 25, usage: 22, startDate: d(-200), endDate: d(530) }),
           mk('l2', 'SVRCIXA', 'Sophos Endpoint - Server', 'term', { quantity: 2, usage: 2, startDate: d(-200), endDate: d(530) }),
@@ -66,6 +72,8 @@ function demoLicenses(kind: TenantKind | 'none'): TenantLicenses {
           mk('l2', 'SVRCIXAMTR-STD-MSP', 'Sophos MDR - Server MSP Monthly', 'usage', { usage: 4, startDate: d(-400) }),
           mk('l3', 'CFR-MSP', 'Central Firewall Reporting Advanced - MSP Monthly', 'usage', { usage: 2, startDate: d(-400) }),
           mk('l4', 'CEMA-MSP', 'Sophos Email MSP Monthly', 'usage', { usage: 36, startDate: d(-400) }),
+          mk('l5', 'NDR-MSP', 'Central Network Detection and Response - MSP Monthly', 'usage', { usage: 0, startDate: d(-400) }),
+          mk('l6', 'XDR-MSP', 'Sophos XDR - User MSP Monthly', 'usage', { usage: 0, startDate: d(-400) }),
         ];
   return { mdr: mdrLevel(licenses), licenses, source: 'rest', fetchedAt: new Date().toISOString() };
 }
@@ -129,12 +137,14 @@ const fusion = new MockBackend('fusion', { comments: true, classify: true, ai: t
 const classic = new MockBackend('classic', { comments: false, classify: false, ai: false });
 
 const licensesOnly = new LicensesOnlyApi(async () => demoLicenses('none'));
+const inactiveOnly = new LicensesOnlyApi(async () => demoLicenses('inactive'));
 
 const TENANTS: (TenantInfo & { api?: CaseBackend })[] = [
   { id: 'demo-a', name: 'Demo Cliente A', region: 'eu01', status: 'ok', kind: 'fusion', capabilities: fusion.capabilities, caseCount: 5, mdr: 'mdr_plus' as MdrLevel, mode: 'full', api: fusion },
   { id: 'demo-b', name: 'Demo Cliente B', region: 'eu02', status: 'ok', kind: 'classic', capabilities: classic.capabilities, caseCount: 5, mdr: 'mdr' as MdrLevel, mode: 'full', api: classic },
   { id: 'demo-c', name: 'Demo Cliente C', region: 'eu01', status: 'unavailable', reason: 'no_service' },
-  { id: 'demo-d', name: 'Demo Cliente D', region: 'eu01', status: 'ok', capabilities: licensesOnly.capabilities, caseCount: 0, mdr: 'none' as MdrLevel, mode: 'licenses', api: licensesOnly },
+  { id: 'demo-d', name: 'Demo Cliente D', region: 'eu01', status: 'ok', capabilities: licensesOnly.capabilities, caseCount: 0, mdr: 'none' as MdrLevel, mode: 'licenses', activeLicenses: 3, api: licensesOnly },
+  { id: 'demo-e', name: 'Demo Cliente E', region: 'eu02', status: 'ok', capabilities: inactiveOnly.capabilities, caseCount: 0, mdr: 'none' as MdrLevel, mode: 'licenses', activeLicenses: 0, api: inactiveOnly },
 ];
 
 const locName = (n: string) => (currentLang() === 'en' ? n.replace('Cliente', 'Customer') : n);

@@ -11,7 +11,7 @@ Features:
 - **Case classification**: verdict (false positive, benign/malicious true positive, inconclusive), reason, note and closing, with explicit confirmation.
 - Chat with the analysts and comment posting (`@sophos` shortcut), PIN login, dark mode, demo mode with fake data.
 - **Multi-tenant** (Partner accounts): customer picker with a portfolio view (cases to handle per customer). Customers already on Fusion get every feature; customers still on **classic Sophos Central** are **read-only** (cases, detections, MITRE, entities and activity timeline, but no comments, classification or AI). Unreachable customers (not delegated / not on Fusion) are listed with the reason and re-checked on demand (Check customers again).
-- **MDR level and licenses:** every customer shows an **MDR** / **MDR Plus** tag, and a **Licenses** tab lists all of its licenses (quantity, usage, expiry). Customers without case access or without MDR are still selectable and open only the Licenses tab.
+- **MDR level and licenses:** every customer shows an **MDR** / **MDR Plus** tag (from its active licenses), and a **Licenses** tab lists its licenses (quantity, usage, expiry). Customers without case access or without MDR are still selectable and open only the Licenses tab.
 - **Bilingual UI** (English / Italian): follows the browser language, switchable in the app or with `?lang=en` / `?lang=it`.
 
 ## Screenshots
@@ -43,10 +43,10 @@ Demo mode (`MOCK_MODE=true`): all data is made up.
 
 ## MDR level and licenses
 
-Every customer shows an **MDR level** tag next to FUSION / CLASSIC in the customer picker and on the dashboard (tap the tag to open the **Licenses** tab, the third tab of the bottom bar). The Licenses tab lists all the customer's licenses (MDR products first) with type, quantity, usage, start/end dates and an expiry warning (expired / within 90 days).
+Every customer shows an **MDR level** tag (**MDR** or **MDR Plus**) next to FUSION / CLASSIC in the customer picker and on the dashboard. The **Licenses** tab (third tab of the bottom bar) lists the selected customer's licenses, MDR products first, with type, quantity, usage, start/end dates and an expiry warning (expired / within 90 days). Pay-as-you-go (MSP) licenses with no seat in use are hidden behind a "Also show unused licenses" button.
 
 - Source: the Sophos Central **Licensing API** (`GET https://api.central.sophos.com/licenses/v1/licenses` with `X-Tenant-ID`), which works for both Fusion and classic customers. For Fusion customers the GraphQL `tenantLicenses` query is the fallback (no dates or quantities). Read-only; licenses are cached in memory for 1 hour.
-- Level rule, from the product codes of the non-expired licenses:
+- Only **active** licenses count: not expired and, for pay-as-you-go licenses, with at least one seat in use. The level is taken from the product codes of the active licenses:
 
 | Product code contains | Level shown |
 |---|---|
@@ -56,6 +56,7 @@ Every customer shows an **MDR level** tag next to FUSION / CLASSIC in the custom
 | none | no tag |
 
 - **Licenses-only customers:** a customer whose cases cannot be read (not on Fusion / no delegation), or that has no cases and no MDR, is still listed (section "No MDR / licenses only") if its licenses can be read. Selecting it opens only the Licenses tab: Dashboard and Cases are hidden and no case API is called.
+- **Inactive customers** (no active license at all) are hidden from the picker; a "Show inactive customers" button at the bottom of the list reveals them.
 - Customers are probed at startup and only when you press "Check customers again" (there is no periodic background check).
 
 ## Quick start (Docker)

@@ -25,35 +25,13 @@ export const KindChip = ({ kind }: { kind?: TenantInfo['kind'] }) =>
 /** Display name of the MDR level (product names are not translated). */
 export const mdrName = (level?: MdrLevel) => (level === 'mdr_plus' ? 'MDR Plus' : level === 'mdr' ? 'MDR' : tr('Nessun MDR'));
 
-/** MDR level tag (MDR / MDR Plus); nothing when there is no MDR or the level is unknown. With `onClick` it is tappable. */
-export const MdrChip = ({ level, onClick }: { level?: MdrLevel; onClick?: () => void }) => {
+/** MDR level tag (MDR / MDR Plus); nothing when there is no MDR or the level is unknown. */
+export const MdrChip = ({ level }: { level?: MdrLevel }) => {
   if (level !== 'mdr' && level !== 'mdr_plus') return null;
   const cls = `shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
     level === 'mdr_plus' ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300' : 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
   }`;
-  return onClick ? (
-    // a span (not a button): the chip sits inside the picker button
-    <span
-      role="link"
-      tabIndex={0}
-      aria-label={tr('Apri le licenze')}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.stopPropagation();
-          onClick();
-        }
-      }}
-      className={`${cls} cursor-pointer underline decoration-dotted underline-offset-2 active:opacity-60`}
-    >
-      {mdrName(level)}
-    </span>
-  ) : (
-    <span className={cls}>{mdrName(level)}</span>
-  );
+  return <span className={cls}>{mdrName(level)}</span>;
 };
 
 /** Grey tag of the customers without case access (only the licenses are available). */
@@ -68,7 +46,7 @@ export const LicensesChip = ({ mode }: { mode?: TenantInfo['mode'] }) =>
 const idTail = (id: string) => `#${id.replace(/-/g, '').slice(-4)}`;
 
 /** Button with the current customer: opens the customer list (with counts) to switch. Hidden with a single customer. */
-export default function TenantPicker({ onUnauthorized, onOpenLicenses }: { onUnauthorized: () => void; onOpenLicenses?: () => void }) {
+export default function TenantPicker({ onUnauthorized }: { onUnauthorized: () => void }) {
   const { tenants, current } = useTenant();
   const [open, setOpen] = useState(false);
   if (tenants.length <= 1) return null;
@@ -84,7 +62,7 @@ export default function TenantPicker({ onUnauthorized, onOpenLicenses }: { onUna
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{current.name}</span>
         <KindChip kind={current.kind} />
         <LicensesChip mode={current.mode} />
-        <MdrChip level={current.mdr} onClick={onOpenLicenses} />
+        <MdrChip level={current.mdr} />
         <span className="hidden shrink-0 text-xs text-neutral-400 min-[420px]:inline">{tr('{n} clienti', { n: ok })}</span>
         <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-neutral-400" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5" /></svg>
       </button>
@@ -97,6 +75,7 @@ function TenantSheet({ onClose, onUnauthorized }: { onClose: () => void; onUnaut
   const { tenants, current, select, recheck, probing } = useTenant();
   const [portfolio, setPortfolio] = useState<PortfolioItem[] | null>(null);
   const [query, setQuery] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -113,7 +92,11 @@ function TenantSheet({ onClose, onUnauthorized }: { onClose: () => void; onUnaut
   const q = query.trim().toLowerCase();
   const rows = tenants.filter((t) => !q || `${t.name} ${t.region ?? ''} ${idTail(t.id)}`.toLowerCase().includes(q));
   const ok = rows.filter((t) => t.status === 'ok' && t.mode !== 'licenses');
-  const lo = rows.filter((t) => t.status === 'ok' && t.mode === 'licenses');
+  const loAll = rows.filter((t) => t.status === 'ok' && t.mode === 'licenses');
+  // inactive = no active license (none, expired, or pay-as-you-go with no seat in use): hidden unless asked for
+  const isInactive = (t: TenantInfo) => t.activeLicenses === 0 && t.id !== current.id;
+  const inactiveCount = loAll.filter(isInactive).length;
+  const lo = showInactive ? loAll : loAll.filter((t) => !isInactive(t));
   const na = rows.filter((t) => t.status !== 'ok');
   // first those with cases to handle
   ok.sort((a, b) => (byId.get(b.id)?.counts?.actionRequired ?? 0) - (byId.get(a.id)?.counts?.actionRequired ?? 0));
@@ -196,6 +179,15 @@ function TenantSheet({ onClose, onUnauthorized }: { onClose: () => void; onUnaut
             })}
           </ul>
         </>
+      )}
+
+      {inactiveCount > 0 && (
+        <button
+          onClick={() => setShowInactive((v) => !v)}
+          className="mt-3 w-full rounded-xl bg-black/5 py-2.5 text-sm font-semibold text-neutral-600 active:opacity-60 dark:bg-white/10 dark:text-neutral-300"
+        >
+          {showInactive ? tr('Nascondi i clienti inattivi') : tr('Mostra clienti inattivi ({n})', { n: inactiveCount })}
+        </button>
       )}
 
       {na.length > 0 && (

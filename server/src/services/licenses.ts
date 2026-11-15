@@ -6,7 +6,7 @@
  * used as a fallback (no dates or quantities there). The MDR level comes from the product codes:
  *   ...MTR-ADV... -> MDR Plus (formerly MDR Complete / MTR Advanced)
  *   ...MTR-STD... -> MDR (formerly MDR Essential / MTR Standard)
- * Expired term licenses never count for the level.
+ * Expired licenses and pay-as-you-go licenses with no seat in use never count for the level.
  */
 import type { LicenseItem, MdrLevel, TenantLicenses } from '../types';
 import type { Connection } from './sophosConnection';
@@ -24,9 +24,19 @@ export function isExpired(l: { perpetual?: boolean; endDate?: string }, now = Da
 
 export const isMdrProduct = (code: string, name: string) => MDR_RE.test(code) || MDR_RE.test(name);
 
-/** MDR level from the licenses (pure function). */
-export function mdrLevel(items: { code: string; name?: string; endDate?: string; perpetual?: boolean }[], now = Date.now()): MdrLevel {
-  const live = items.filter((l) => !isExpired(l, now));
+type Licensish = { code: string; name?: string; endDate?: string; perpetual?: boolean; type?: string; usage?: number };
+
+/**
+ * A license counts as active when it is not expired and, for pay-as-you-go (usage) licenses, has at least one seat in use.
+ * (`usage` undefined = unknown, e.g. the GraphQL fallback has no usage data: counted as active.)
+ */
+export function isActive(l: Licensish, now = Date.now()): boolean {
+  return !isExpired(l, now) && !(l.type === 'usage' && l.usage === 0);
+}
+
+/** MDR level from the licenses that are in use (pure function). */
+export function mdrLevel(items: Licensish[], now = Date.now()): MdrLevel {
+  const live = items.filter((l) => isActive(l, now));
   const codes = live.map((l) => l.code.toUpperCase());
   if (codes.some((c) => c.includes('MTR-ADV'))) return 'mdr_plus';
   if (codes.some((c) => c.includes('MTR-STD'))) return 'mdr';
@@ -57,7 +67,8 @@ export function parseRestLicenses(json: unknown): LicenseItem[] {
       perpetual: perpetual || undefined,
       startDate: day(r.startDate),
       endDate,
-      usage: typeof r.usage?.current?.count === 'number' ? r.usage.current.count : undefined,
+      // pay-as-you-go licenses without usage data have no seat in use
+      usage: typeof r.usage?.current?.count === 'number' ? r.usage.current.count : kind(r.type) === 'usage' ? 0 : undefined,
     };
   });
 }

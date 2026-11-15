@@ -107,10 +107,18 @@ export default function Licenses({ mock, onUnauthorized, onLogout }: { mock: boo
     setSpinning(false);
   };
 
+  // Pay-as-you-go (MSP) licenses with no seat in use are hidden unless the user asks for them
+  const [showUnused, setShowUnused] = useState(false);
+  const isUnused = (l: LicenseItem) => l.type === 'usage' && l.usage === 0;
+  const unusedCount = useMemo(() => (data?.licenses ?? []).filter(isUnused).length, [data]);
+
   // MDR products first, then by name
   const sorted = useMemo(
-    () => [...(data?.licenses ?? [])].sort((a, b) => Number(b.mdr) - Number(a.mdr) || a.name.localeCompare(b.name)),
-    [data],
+    () =>
+      [...(data?.licenses ?? [])]
+        .filter((l) => showUnused || !isUnused(l))
+        .sort((a, b) => Number(b.mdr) - Number(a.mdr) || a.name.localeCompare(b.name)),
+    [data, showUnused],
   );
 
   return (
@@ -158,7 +166,7 @@ export default function Licenses({ mock, onUnauthorized, onLogout }: { mock: boo
                 {mdrName(data.mdr)}
               </p>
               <p className="mt-1 text-xs text-neutral-400">
-                {t('{n} licenze', { n: data.licenses.length })} · {t('Aggiornato alle')}{' '}
+                {t('{n} licenze', { n: data.licenses.length - (showUnused ? 0 : unusedCount) })} · {t('Aggiornato alle')}{' '}
                 {new Date(data.fetchedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}
               </p>
             </section>
@@ -169,6 +177,14 @@ export default function Licenses({ mock, onUnauthorized, onLogout }: { mock: boo
                 <LicenseCard key={l.id} l={l} />
               ))}
             </ul>
+            {unusedCount > 0 && (
+              <button
+                onClick={() => setShowUnused((s) => !s)}
+                className="w-full rounded-xl bg-black/5 py-2.5 text-sm font-semibold text-neutral-600 active:opacity-60 dark:bg-white/10 dark:text-neutral-300"
+              >
+                {showUnused ? t('Nascondi le licenze non in uso') : t('Mostra anche le licenze non in uso ({n})', { n: unusedCount })}
+              </button>
+            )}
           </div>
         )}
       </div>

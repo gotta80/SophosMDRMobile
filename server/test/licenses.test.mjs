@@ -44,3 +44,16 @@ test('REST response is normalized', () => {
   assert.deepEqual([out[0].mdr, out[0].quantity, out[0].usage, out[0].type], [true, 48, 7, 'term']);
   assert.deepEqual([out[1].mdr, out[1].unlimited, out[1].type], [false, true, 'usage']);
 });
+
+test('pay-as-you-go licenses with no seat in use do not count for the level', () => {
+  assert.equal(mdrLevel([L('CIXAMTR-ADV-MSP', { type: 'usage', usage: 0 })], NOW), 'none');
+  assert.equal(mdrLevel([L('CIXAMTR-ADV-MSP', { type: 'usage', usage: 6 })], NOW), 'mdr_plus');
+  assert.equal(mdrLevel([L('CIXAMTR-ADV-MSP', { type: 'usage', usage: 0 }), L('CIXAMTR-STD-MSP', { type: 'usage', usage: 3 })], NOW), 'mdr');
+  // unknown usage (GraphQL fallback) is counted as active
+  assert.equal(mdrLevel([L('CIXAMTR-ADV-MSP', { type: 'usage' })], NOW), 'mdr_plus');
+});
+
+test('REST usage licenses without usage data are unused (usage 0)', () => {
+  const [a] = parseRestLicenses({ licenses: [{ id: 'x', type: 'usage', product: { code: 'CFR-MSP', name: 'CFR' } }] });
+  assert.equal(a.usage, 0);
+});

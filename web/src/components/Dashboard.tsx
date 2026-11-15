@@ -16,7 +16,6 @@ interface Props {
   mock: boolean;
   onOpenCase: (id: string) => void;
   onOpenList: (filter: 'all' | 'action' | 'active' | 'resolved') => void;
-  onOpenLicenses: () => void;
   onUnauthorized: () => void;
   onLogout: () => void;
 }
@@ -93,7 +92,7 @@ function Trend({ daily, weekly }: { daily: DashboardData['daily']; weekly: boole
   );
 }
 
-export default function Dashboard({ mock, onOpenCase, onOpenList, onOpenLicenses, onUnauthorized, onLogout }: Props) {
+export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized, onLogout }: Props) {
   const [days, setDays] = useState<number>(() => Number(sessionStorage.getItem('dashDays')) || 30);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
@@ -156,7 +155,7 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onOpenLicenses
             </button>
           </div>
         </div>
-        <TenantPicker onUnauthorized={onUnauthorized} onOpenLicenses={onOpenLicenses} />
+        <TenantPicker onUnauthorized={onUnauthorized} />
         <div className="px-4 pb-3">
           <div role="tablist" aria-label={t('Periodo')} className="flex rounded-xl bg-black/5 p-0.5 dark:bg-white/10">
             {PERIODS.map((p) => (

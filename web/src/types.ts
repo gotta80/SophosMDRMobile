@@ -88,6 +88,8 @@ export interface TenantInfo {
   mdr?: MdrLevel;
   /** 'licenses' = no case access: only the Licenses tab is available */
   mode?: 'full' | 'licenses';
+  /** active licenses (not expired, seats in use); 0 = inactive customer */
+  activeLicenses?: number;
 }
 
 export type MdrLevel = 'mdr' | 'mdr_plus' | 'none';

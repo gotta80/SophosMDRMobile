@@ -61,7 +61,7 @@ function Shell({ route: routeIn, mock, push, replace, onUnauthorized, onLogout }
     <div className="flex h-full flex-col">
       <main className="min-h-0 flex-1">
         {tab === 'dashboard' ? (
-          <Dashboard mock={mock} onOpenCase={openCase} onOpenList={openList} onOpenLicenses={() => replace('#/licenses')} onUnauthorized={onUnauthorized} onLogout={onLogout} />
+          <Dashboard mock={mock} onOpenCase={openCase} onOpenList={openList} onUnauthorized={onUnauthorized} onLogout={onLogout} />
         ) : tab === 'cases' ? (
           <CaseList mock={mock} onOpen={openCase} onUnauthorized={onUnauthorized} onLogout={onLogout} />
         ) : (

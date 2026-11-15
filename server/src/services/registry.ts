@@ -18,7 +18,7 @@ import type { CaseBackend } from './backend';
 import { ClassicApi } from './classicApi';
 import { Connection, SophosError } from './sophosConnection';
 import { LicensesOnlyApi } from './licensesOnlyApi';
-import { build, parseRestLicenses } from './licenses';
+import { build, isActive, parseRestLicenses } from './licenses';
 import { Counts, TenantApi } from './sophosClient';
 
 export type Reason = 'access_denied' | 'no_service' | 'error';
@@ -36,6 +36,8 @@ export interface TenantInfo {
   mdr?: MdrLevel;
   /** 'full' = cases + features; 'licenses' = no case access, only the Licenses tab (status stays 'ok') */
   mode?: 'full' | 'licenses';
+  /** number of active licenses (not expired, with seats in use); undefined when not read. 0 = inactive customer */
+  activeLicenses?: number;
 }
 
 interface Candidate {
@@ -214,7 +216,9 @@ export class Registry {
     if (e.status === 'ok' && e.mode !== 'licenses' && e.api) {
       // accessible customer: licenses through its own backend
       try {
-        e.mdr = (await e.api.getLicenses(true)).mdr;
+        const lic = await e.api.getLicenses(true);
+        e.mdr = lic.mdr;
+        e.activeLicenses = lic.licenses.filter((l) => isActive(l)).length;
       } catch {
         /* licenses unavailable: keep the previous value */
       }
@@ -228,6 +232,7 @@ export class Registry {
       try {
         const lic = build(parseRestLicenses(await conn.globalRest<unknown>(e.id, '/licenses/v1/licenses')), 'rest');
         e.mdr = lic.mdr;
+        e.activeLicenses = lic.licenses.filter((l) => isActive(l)).length;
         e.api = new LicensesOnlyApi(async (force) => {
           const j = await conn.globalRest<unknown>(e.id, '/licenses/v1/licenses');
           void force; // no cache here: the list is small and read only on demand
