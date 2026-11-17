@@ -1,5 +1,5 @@
 import { currentLang } from '../lang';
-import { htmlToMarkdown } from './htmlText';
+import { decode, htmlToMarkdown } from './htmlText';
 /**
  * GraphQL queries / mutations for Sophos Cases GraphQL (cases-v2 schema) + normalizers.
  * Source: https://developer.sophos.com/graphql/cases-v2/  (schema: /assets/graphql/cases-v2.graphql)
@@ -252,7 +252,7 @@ export function normalizeSummary(c: Raw): CaseSummary {
   return {
     id: String(c.id),
     shortId: c.shortId ? String(c.shortId) : undefined,
-    title: String(c.title ?? 'Senza titolo'),
+    title: decode(String(c.title ?? 'Senza titolo')),
     severity: toSeverity(c.severity),
     status: toStatus(c),
     type: String(c.type?.title ?? c.type?.name ?? 'case'),
@@ -342,7 +342,7 @@ export function parseAlerts(alerts: Raw[]): { detections: Detection[]; mitre: Mi
   for (const a of alerts) {
     detections.push({
       id: String(a.id),
-      name: String(a.metadata?.title ?? a.id),
+      name: decode(String(a.metadata?.title ?? a.id)),
       severity: a.metadata?.severity != null ? scoreToSeverity(a.metadata.severity) : null,
       source: a.sensor_types?.[0] ? String(a.sensor_types[0]) : undefined,
     });

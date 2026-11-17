@@ -1,3 +1,4 @@
+import { decode } from './htmlText';
 import { currentLang } from '../lang';
 /**
  * Adapter for the cases on the Sophos Central "classic dashboard" (REST /cases/v1), for customers not yet
@@ -87,7 +88,7 @@ export class ClassicApi implements CaseBackend {
     return {
       id: String(c.id),
       shortId: String(c.id),
-      title: String(c.name ?? 'Senza titolo'),
+      title: decode(String(c.name ?? 'Senza titolo')),
       severity: severity(c.severity),
       status: STATUS[c.status] ?? 'new',
       type: c.type ? titleCase(String(c.type)) : 'Case',

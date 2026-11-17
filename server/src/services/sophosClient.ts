@@ -55,6 +55,11 @@ import {
   normalizeSummary,
 } from './sophosQueries';
 
+import { decode, htmlToMarkdown } from './htmlText';
+
+/** AI text may carry HTML entities (&amp;) or tags: decode them, plain Markdown is left as is. */
+const cleanAiText = (s: string) => (/<[a-z\/]/i.test(s) ? htmlToMarkdown(s) : decode(s));
+
 const MAX_PAGES = 3; // up to 300 cases
 const ENTITY_TTL_MS = 10 * 60_000;
 const MAX_DETECTIONS = 20; // detections fetched per case
@@ -215,7 +220,7 @@ export class TenantApi implements CaseBackend {
   aiCaseSummary(caseId: string): Promise<string> {
     return this.cachedAi(`case:${caseId}`, async () => {
       const r = await this.graphql<{ generativeAICaseSummary: { summary: string } }>(Q_AI_CASE_SUMMARY, { caseId });
-      return r.generativeAICaseSummary?.summary ?? '';
+      return cleanAiText(r.generativeAICaseSummary?.summary ?? '');
     });
   }
 
@@ -224,7 +229,7 @@ export class TenantApi implements CaseBackend {
     if (!(await this.getEvidence(caseId)).detectionIds.includes(detectionId)) throw new SophosError('detection_not_in_case', 404);
     return this.cachedAi(`det:${detectionId}`, async () => {
       const r = await this.graphql<{ generativeAIDetectionAnalysis: { analysis: string } }>(Q_AI_DETECTION, { detectionId });
-      return r.generativeAIDetectionAnalysis?.analysis ?? '';
+      return cleanAiText(r.generativeAIDetectionAnalysis?.analysis ?? '');
     });
   }
 
