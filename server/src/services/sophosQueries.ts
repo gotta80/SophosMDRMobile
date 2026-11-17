@@ -1,4 +1,5 @@
 import { currentLang } from '../lang';
+import { htmlToMarkdown } from './htmlText';
 /**
  * GraphQL queries / mutations for Sophos Cases GraphQL (cases-v2 schema) + normalizers.
  * Source: https://developer.sophos.com/graphql/cases-v2/  (schema: /assets/graphql/cases-v2.graphql)
@@ -265,19 +266,43 @@ export function normalizeSummary(c: Raw): CaseSummary {
   };
 }
 
-/** Identifies "your" comments: authorId present in SOPHOS_MY_AUTHOR_IDS (or equal to the API client id). */
-export function normalizeComment(c: Raw, myAuthorIds: Set<string>): CaseComment {
+/** Automated author used by Sophos for its notification comments ("... email sent to authorized contacts"). */
+const SYSTEM_AUTHOR = 'mtr-to-central';
+
+/**
+ * Who wrote a comment. The API only gives an opaque authorId (the author's name cannot be resolved with an API
+ * credential), so the side is inferred:
+ *   - "yours": authorId in SOPHOS_MY_AUTHOR_IDS (or equal to the API client id)      -> role 'customer'
+ *   - Sophos automation (mtr-to-central)                                               -> role 'system'
+ *   - a colleague (customer side): the author is in `colleagues` (learned by learnAuthors)  -> role 'colleague'
+ *   - everybody else is the Sophos SOC                                                  -> role 'analyst'
+ */
+export function normalizeComment(c: Raw, myAuthorIds: Set<string>, colleagues: Set<string> = new Set()): CaseComment {
   const authorId = String(c.authorId ?? c.authorSubject?.id ?? '');
-  const mine = myAuthorIds.has(authorId);
-  return {
-    id: String(c.id),
-    body: String(c.comment ?? ''),
-    createdAt: String(c.createdAt ?? new Date().toISOString()),
-    author: {
-      name: mine ? 'Tu' : c.isInternal ? (currentLang() === 'en' ? 'Sophos (internal)' : 'Sophos (interno)') : 'Sophos MDR',
-      role: mine ? 'customer' : 'analyst',
-    },
-  };
+  const en = currentLang() === 'en';
+  const base = { id: String(c.id), body: String(c.comment ?? ''), createdAt: String(c.createdAt ?? new Date().toISOString()) };
+  if (myAuthorIds.has(authorId)) return { ...base, author: { name: 'Tu', role: 'customer' } };
+  if (authorId === SYSTEM_AUTHOR) return { ...base, author: { name: 'Sophos MDR', role: 'system' } };
+  if (colleagues.has(authorId)) return { ...base, author: { name: en ? 'Colleague' : 'Collega', role: 'colleague' } };
+  return { ...base, author: { name: c.isInternal ? (en ? 'Sophos (internal)' : 'Sophos (interno)') : 'Sophos MDR', role: 'analyst' } };
+}
+
+const MENTIONS_SOPHOS = /(^|[\s(])@sophos\b/i; // customers address the MDR team with @sophos
+const MENTIONS_CUSTOMER = /(^|[\s(])@authorized_contacts\b/i; // the SOC addresses the customer's authorized contacts
+
+/**
+ * Learns who is a colleague: an author who writes "@sophos" is on the customer side, one who writes
+ * "@authorized_contacts" is the SOC. `colleagues` is updated in place and keeps what was learned in other cases.
+ */
+export function learnAuthors(comments: Raw[], myAuthorIds: Set<string>, colleagues: Set<string>, soc: Set<string>): void {
+  for (const c of comments) {
+    const id = String(c.authorId ?? c.authorSubject?.id ?? '');
+    if (!id || id === SYSTEM_AUTHOR || myAuthorIds.has(id)) continue;
+    const body = String(c.comment ?? '');
+    if (MENTIONS_CUSTOMER.test(body)) soc.add(id);
+    else if (MENTIONS_SOPHOS.test(body)) colleagues.add(id);
+  }
+  for (const id of soc) colleagues.delete(id); // an author seen on both sides is the SOC
 }
 
 /**
@@ -286,7 +311,7 @@ export function normalizeComment(c: Raw, myAuthorIds: Set<string>): CaseComment 
  */
 export function keyFindingsText(kf: Raw | null | undefined): string | undefined {
   if (!kf?.content) return undefined;
-  if (norm(kf.documentType) !== 'richtext') return String(kf.content);
+  if (norm(kf.documentType) !== 'richtext') return htmlToMarkdown(String(kf.content));
   try {
     const parts: string[] = [];
     const walk = (n: any) => {
@@ -365,7 +390,7 @@ export function assetToEntities(a: Raw): Entity[] {
   return out;
 }
 
-export function normalizeDetails(c: Raw, comments: Raw[], myAuthorIds: Set<string>, entities: Entity[] = []): CaseDetails {
+export function normalizeDetails(c: Raw, comments: Raw[], myAuthorIds: Set<string>, entities: Entity[] = [], colleagues: Set<string> = new Set()): CaseDetails {
   const parts = [
     `${c.detectionsCount ?? 0} detection`,
     `${c.eventsCount ?? 0} eventi`,
@@ -379,7 +404,7 @@ export function normalizeDetails(c: Raw, comments: Raw[], myAuthorIds: Set<strin
     detections: [],
     mitre: [],
     comments: comments
-      .map((m) => normalizeComment(m, myAuthorIds))
+      .map((m) => normalizeComment(m, myAuthorIds, colleagues))
       .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt)),
   };
 }

@@ -25,7 +25,7 @@ export interface CaseComment {
   id: string;
   body: string;
   createdAt: string;
-  author: { name: string; role: 'analyst' | 'customer' | 'system' };
+  author: { name: string; role: 'analyst' | 'customer' | 'colleague' | 'system' };
 }
 
 export interface Detection { id: string; name: string; severity: CaseSeverity | null; source?: string }

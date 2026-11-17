@@ -49,6 +49,7 @@ import {
   casesVariables,
   caseVariables,
   commentsVariables,
+  learnAuthors,
   normalizeComment,
   normalizeDetails,
   normalizeSummary,
@@ -93,6 +94,10 @@ export class TenantApi implements CaseBackend {
   }
 
   /** Author ID of the comments written by this app (to tell them apart from the analysts' ones). */
+  /** Authors recognised as colleagues (customer side) / as Sophos SOC, learned from the comments read so far (in memory). */
+  private readonly colleagues = new Set<string>();
+  private readonly soc = new Set<string>();
+
   private myAuthorIds(): Set<string> {
     return new Set([this.conn.clientId, ...config.sophos.myAuthorIds].filter(Boolean));
   }
@@ -359,7 +364,9 @@ export class TenantApi implements CaseBackend {
     } catch {
       /* evidence unavailable: the detail is shown anyway */
     }
-    const details = normalizeDetails(c.case, cm.caseComments?.comments ?? [], this.myAuthorIds(), ev.entities);
+    const rawComments = cm.caseComments?.comments ?? [];
+    learnAuthors(rawComments, this.myAuthorIds(), this.colleagues, this.soc);
+    const details = normalizeDetails(c.case, rawComments, this.myAuthorIds(), ev.entities, this.colleagues);
     details.detectionIds = ev.detectionIds;
     details.detections = ev.detections;
     details.mitre = ev.mitre;
@@ -370,7 +377,7 @@ export class TenantApi implements CaseBackend {
     const data = await this.graphql<{ addCaseComment: any }>(M_ADD_COMMENT, { input: { caseId, comment: commentText } });
     // we wrote the comment ourselves: mark it as "yours" regardless of the authorId
     const mine = new Set(this.myAuthorIds()).add(String(data.addCaseComment?.authorId ?? ''));
-    return normalizeComment(data.addCaseComment, mine);
+    return normalizeComment(data.addCaseComment, mine, this.colleagues);
   }
 }
 

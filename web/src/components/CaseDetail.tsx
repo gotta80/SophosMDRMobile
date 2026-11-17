@@ -346,14 +346,26 @@ function Message({ m }: { m: CaseComment }) {
   if (m.author.role === 'system')
     return <li className="px-4 text-center text-xs text-neutral-400">{m.body} · {fmtDateTime(m.createdAt)}</li>;
   const mine = m.author.role === 'customer';
+  const colleague = m.author.role === 'colleague'; // a colleague of the customer (not the Sophos SOC): highlighted
   return (
     <li className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
       <span className="mb-0.5 px-2 text-[11px] text-neutral-400">
-        {mine ? t('Tu') : m.author.name} · {fmtDateTime(m.createdAt)}
+        {mine ? (
+          t('Tu')
+        ) : colleague ? (
+          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">{m.author.name}</span>
+        ) : (
+          m.author.name
+        )}{' '}
+        · {fmtDateTime(m.createdAt)}
       </span>
       <div
         className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[15px] leading-snug ${
-          mine ? 'rounded-br-md bg-ios-blue text-white' : 'rounded-bl-md bg-white ring-1 ring-black/5 dark:bg-neutral-800 dark:ring-white/10'
+          mine
+            ? 'rounded-br-md bg-ios-blue text-white'
+            : colleague
+              ? 'rounded-bl-md bg-emerald-50 ring-1 ring-emerald-500/40 dark:bg-emerald-900/30 dark:ring-emerald-400/30'
+              : 'rounded-bl-md bg-white ring-1 ring-black/5 dark:bg-neutral-800 dark:ring-white/10'
         }`}
       >
         {m.body}

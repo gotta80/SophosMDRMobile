@@ -4,6 +4,7 @@ import type { CaseComment, CaseDetails, CaseFilters, CaseSummary, ClassifyInput,
 
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const A = (name = 'Sophos MDR Analyst'): CaseComment['author'] => ({ name, role: 'analyst' });
+const COLLEAGUE = (): CaseComment['author'] => ({ name: 'Collega', role: 'colleague' }); // localized in loc()
 const ME: CaseComment['author'] = { name: 'Tu', role: 'customer' }; // the client shows 'Tu'/'You' depending on the role
 
 const cases: CaseDetails[] = [
@@ -39,6 +40,7 @@ const cases: CaseDetails[] = [
       { id: 'c1', author: { name: 'Sophos MDR', role: 'system' }, createdAt: ago(190), body: 'Caso creato automaticamente da detection ad alta priorità.' },
       { id: 'c2', author: A('Elena R. (Sophos MDR)'), createdAt: ago(60), body: "Abbiamo avviato l'analisi su SRV-FILE01. Rileviamo cifratura attiva da parte di un processo sospetto avviato da svc-backup." },
       { id: 'c3', author: A('Elena R. (Sophos MDR)'), createdAt: ago(12), body: "⚠️ Azione richiesta: confermi che possiamo isolare SRV-FILE01 dalla rete? L'isolamento interrompe l'accesso alle share ma blocca la propagazione. Attendiamo la tua conferma." },
+      { id: 'c3b', author: COLLEAGUE(), createdAt: ago(8), body: 'Ciao @sophos, SRV-FILE01 è il file server di produzione: confermo, potete isolarlo. Gabriele' },
     ],
   },
   {
@@ -145,6 +147,7 @@ const EN_COMMENTS: Record<string, string> = {
   c1: 'Case created automatically from a high-priority detection.',
   c2: 'We started the analysis on SRV-FILE01. We see active encryption by a suspicious process launched by svc-backup.',
   c3: '⚠️ Action required: can you confirm that we may isolate SRV-FILE01 from the network? Isolation cuts access to the shares but stops the spread. We are waiting for your confirmation.',
+  c3b: 'Hi @sophos, SRV-FILE01 is the production file server: confirmed, you can isolate it. Gabriele',
   c4: 'We are checking the authentication logs. Can you confirm whether m.rossi is traveling?',
   c5: 'Can we trace the activity back to scheduled maintenance?',
   c6: 'I will check with the infrastructure team and get back to you. @sophos',
@@ -155,7 +158,7 @@ function loc<T extends CaseSummary | CaseDetails>(c: T): T {
   if (currentLang() !== 'en') return c;
   const o = EN_CASES[c.id];
   const out: any = { ...c, ...(o ? { title: o.title, summary: o.summary, ...(o.keyFindings && 'keyFindings' in c ? { keyFindings: o.keyFindings } : {}) } : {}) };
-  if ('comments' in c) out.comments = c.comments.map((m) => (EN_COMMENTS[m.id] ? { ...m, body: EN_COMMENTS[m.id] } : m));
+  if ('comments' in c) out.comments = c.comments.map((m) => ({ ...m, ...(EN_COMMENTS[m.id] ? { body: EN_COMMENTS[m.id] } : {}), ...(m.author.role === 'colleague' ? { author: { ...m.author, name: 'Colleague' } } : {}) }));
   return out;
 }
 
