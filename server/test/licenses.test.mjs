@@ -57,3 +57,9 @@ test('REST usage licenses without usage data are unused (usage 0)', () => {
   const [a] = parseRestLicenses({ licenses: [{ id: 'x', type: 'usage', product: { code: 'CFR-MSP', name: 'CFR' } }] });
   assert.equal(a.usage, 0);
 });
+
+test('new MDR codes: *MDR-COMPLETE is MDR Plus, MDR/SRVMDR/USRMDR are MDR', () => {
+  for (const c of ['MDR-COMPLETE', 'SRVMDR-COMPLETE']) assert.equal(mdrLevel([L(c)], NOW), 'mdr_plus', c);
+  for (const c of ['MDR', 'SRVMDR', 'USRMDR']) assert.equal(mdrLevel([L(c)], NOW), 'mdr', c);
+  assert.equal(mdrLevel([L('SRVMDR'), L('MDR-COMPLETE')], NOW), 'mdr_plus');
+});

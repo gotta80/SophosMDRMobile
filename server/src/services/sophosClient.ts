@@ -56,6 +56,7 @@ import {
 } from './sophosQueries';
 
 import { decode, htmlToMarkdown } from './htmlText';
+import { fetchAccountHealth, HealthStore } from './accountHealth';
 
 /** AI text may carry HTML entities (&amp;) or tags: decode them, plain Markdown is left as is. */
 const cleanAiText = (s: string) => (/<[a-z\/]/i.test(s) ? htmlToMarkdown(s) : decode(s));
@@ -91,11 +92,20 @@ export class TenantApi implements CaseBackend {
   constructor(
     private readonly conn: Connection,
     readonly tenantId: string,
+    private readonly apiHost?: string,
   ) {}
 
   private licenses = new LicenseStore(() => fetchLicenses(this.conn, this.tenantId, true));
   getLicenses(force = false) {
     return this.licenses.get(force);
+  }
+
+  private health = new HealthStore(() => {
+    if (!this.apiHost) throw new SophosError('not_found', 404);
+    return fetchAccountHealth(this.conn, this.apiHost, this.tenantId);
+  });
+  getAccountHealth(force = false) {
+    return this.health.get(force);
   }
 
   /** Author ID of the comments written by this app (to tell them apart from the analysts' ones). */

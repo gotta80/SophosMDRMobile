@@ -134,6 +134,15 @@ app.get(
   ),
 );
 
+/** Account Health Check scores of the selected customer (`?refresh=1` bypasses the cache). */
+app.get(
+  '/api/account-health',
+  requireAuth,
+  wrap((req, res) =>
+    tenantRoute(req, res, null, async (api) => res.json(await api.getAccountHealth(req.query.refresh === '1'))),
+  ),
+);
+
 /** Portfolio view: counts (open / to handle) for every accessible customer. */
 app.get(
   '/api/portfolio',

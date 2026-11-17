@@ -7,6 +7,7 @@ import type {
   ClassifyInput,
   DashboardData,
   Reference,
+  AccountHealth,
   TenantKind,
   TenantLicenses,
 } from '../types';
@@ -28,4 +29,6 @@ export interface CaseBackend {
   getCounts(): Promise<Counts>;
   /** Licenses and MDR level of the customer (1 h cache; `force` re-reads). */
   getLicenses(force?: boolean): Promise<TenantLicenses>;
+  /** Account Health Check scores (10 min cache). */
+  getAccountHealth(force?: boolean): Promise<AccountHealth>;
 }

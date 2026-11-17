@@ -1,5 +1,5 @@
 /** Demo mode (MOCK_MODE): three fake customers: one Fusion, one classic (read-only) and one unavailable. */
-import type { Activity, Capabilities, LicenseItem, MdrLevel, TenantKind, TenantLicenses } from '../types';
+import type { AccountHealth, Activity, Capabilities, LicenseItem, MdrLevel, TenantKind, TenantLicenses } from '../types';
 import { mdrLevel } from './licenses';
 import { currentLang } from '../lang';
 import type { CaseBackend } from './backend';
@@ -78,6 +78,23 @@ function demoLicenses(kind: TenantKind | 'none' | 'inactive'): TenantLicenses {
   return { mdr: mdrLevel(licenses), licenses, source: 'rest', fetchedAt: new Date().toISOString() };
 }
 
+/** Demo Account Health Check: the Fusion customer has one server policy below the recommended settings. */
+function demoHealth(kind: TenantKind): AccountHealth {
+  const ok = (id: string, group: 'endpoint' | 'mdr', total?: number) => ({ id, group, score: 100, total, snoozed: false, detail: [] as string[] });
+  const items = [
+    ok('protection.computer', 'endpoint', 42),
+    ok('protection.server', 'endpoint', 6),
+    ok('policy.computer', 'endpoint', 3),
+    kind === 'fusion' ? { id: 'policy.server', group: 'endpoint' as const, score: 90, total: 2, snoozed: false, detail: ['Base Policy'] } : ok('policy.server', 'endpoint', 2),
+    ok('exclusions.global', 'endpoint'),
+    ok('tamper.computer', 'endpoint', 42),
+    ok('tamper.global', 'endpoint'),
+    ok('mdr.telemetry', 'mdr', 3),
+    ok('mdr.contact', 'mdr'),
+  ];
+  return { score: Math.min(...items.map((i) => i.score)), items, fetchedAt: new Date().toISOString() };
+}
+
 class MockBackend implements CaseBackend {
   constructor(
     readonly kind: TenantKind,
@@ -123,6 +140,9 @@ class MockBackend implements CaseBackend {
   async getDashboard(days: number) {
     const d = mockStore.dashboard(days);
     return this.kind === 'classic' ? { ...d, kpi: { ...d.kpi, effortHours: null } } : d;
+  }
+  async getAccountHealth(): Promise<AccountHealth> {
+    return demoHealth(this.kind);
   }
   async getLicenses(): Promise<TenantLicenses> {
     return demoLicenses(this.kind);

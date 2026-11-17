@@ -262,7 +262,7 @@ export class Registry {
     for (const { conn, apiHost } of e.sources) {
       try {
         const r = await conn.graphql<{ cases: { totalCount: number } }>(e.id, FUSION_PROBE);
-        found.push({ kind: 'fusion', count: r.cases?.totalCount ?? 0, make: () => new TenantApi(conn, e.id) });
+        found.push({ kind: 'fusion', count: r.cases?.totalCount ?? 0, make: () => new TenantApi(conn, e.id, apiHost) });
       } catch (err) {
         reason = classify(err);
       }

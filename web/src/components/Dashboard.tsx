@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import { locale, t } from '../lib/i18n';
 import LangToggle from './LangToggle';
-import type { DashboardData } from '../types';
+import type { AccountHealth, DashboardData } from '../types';
 import { SEVERITY_BAR, SEVERITY_LABEL, VERDICT_BAR, verdictLabel } from '../lib/format';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import CaseCard from './CaseCard';
@@ -29,6 +29,56 @@ const Card = ({ title, aside, children }: { title: string; aside?: ReactNode; ch
     {children}
   </section>
 );
+
+const HEALTH_LABEL: Record<string, string> = {
+  'protection.computer': t('Protezione dei computer'),
+  'protection.server': t('Protezione dei server'),
+  'policy.computer': t('Policy dei computer'),
+  'policy.server': t('Policy dei server'),
+  'exclusions.computer': t('Esclusioni dei computer'),
+  'exclusions.server': t('Esclusioni dei server'),
+  'exclusions.global': t('Esclusioni globali'),
+  'tamper.computer': t('Tamper Protection dei computer'),
+  'tamper.server': t('Tamper Protection dei server'),
+  'tamper.global': t('Tamper Protection globale'),
+  'mdr.telemetry': t('MDR: dati di telemetria'),
+  'mdr.contact': t('MDR: contatto autorizzato'),
+};
+
+const scoreTone = (n: number) => (n >= 90 ? 'text-emerald-600 dark:text-emerald-400' : n >= 70 ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400');
+
+/** Sophos Central Account Health Check: lowest score of the checks, the checks below 100 and (on request) all of them. */
+function HealthCard({ h }: { h: AccountHealth }) {
+  const [all, setAll] = useState(false);
+  const weak = h.items.filter((i) => i.score < 100 && !i.snoozed);
+  const shown = all ? h.items : weak;
+  return (
+    <Card title={t('Salute account')} aside={t('Aggiornato alle')+' '+new Date(h.fetchedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}>
+      <div className="flex items-baseline gap-2">
+        <span className={`text-4xl font-bold tabular-nums ${h.score == null ? 'text-neutral-400' : scoreTone(h.score)}`}>{h.score ?? '–'}</span>
+        <span className="text-sm text-neutral-400">/ 100</span>
+        <span className="ml-1 text-xs text-neutral-500">{weak.length === 0 ? t('Tutti i controlli sono a posto') : weak.length === 1 ? t('1 controllo da sistemare') : t('{n} controlli da sistemare', { n: weak.length })}</span>
+      </div>
+      {shown.length > 0 && (
+        <ul className="mt-2.5 divide-y divide-black/5 dark:divide-white/10">
+          {shown.map((i) => (
+            <li key={i.id} className="flex items-start justify-between gap-3 py-1.5">
+              <span className="min-w-0 text-sm">
+                {HEALTH_LABEL[i.id] ?? i.id}
+                {i.snoozed && <span className="ml-1.5 text-[11px] text-neutral-400">{t('Posticipato')}</span>}
+                {i.detail.length > 0 && <span className="block truncate text-xs text-neutral-400">{i.detail.join(', ')}</span>}
+              </span>
+              <span className={`shrink-0 text-sm font-semibold tabular-nums ${scoreTone(i.score)}`}>{i.score}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button onClick={() => setAll((v) => !v)} className="mt-2 text-xs font-semibold text-ios-blue active:opacity-60">
+        {all ? t('Solo da sistemare') : t('Tutti i controlli ({n})', { n: h.items.length })} {all ? '▴' : '▾'}
+      </button>
+    </Card>
+  );
+}
 
 function Tile({ label, value, sub, tone, onClick }: { label: string; value: ReactNode; sub?: string; tone?: 'alert'; onClick?: () => void }) {
   const cls = `rounded-2xl p-3.5 text-left shadow-sm ring-1 ${
@@ -125,6 +175,14 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
   };
 
   const { current, select } = useTenant();
+  // health scores: optional card, hidden when the API does not answer for this customer
+  const [health, setHealth] = useState<AccountHealth | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setHealth(null);
+    api.accountHealth().then((h) => alive && setHealth(h)).catch(() => {});
+    return () => { alive = false; };
+  }, [current.id]);
   const [others, setOthers] = useState<PortfolioItem[]>([]);
   useEffect(() => {
     let alive = true;
@@ -228,6 +286,8 @@ export default function Dashboard({ mock, onOpenCase, onOpenList, onUnauthorized
                 </div>
               </section>
             )}
+
+            {health && <HealthCard h={health} />}
 
             <Card title={t('Andamento')} aside={t('{n} casi', { n: data.kpi.totalCases })}>
               <Trend daily={data.daily} weekly={data.days > 31} />

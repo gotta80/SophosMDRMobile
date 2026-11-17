@@ -43,6 +43,9 @@ export class LicensesOnlyApi implements CaseBackend {
   getDashboard() {
     return Promise.resolve(no());
   }
+  getAccountHealth() {
+    return Promise.resolve(no());
+  }
   getCounts() {
     return Promise.resolve(no());
   }

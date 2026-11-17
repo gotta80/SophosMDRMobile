@@ -1,4 +1,5 @@
 import { decode } from './htmlText';
+import { fetchAccountHealth, HealthStore } from './accountHealth';
 import { currentLang } from '../lang';
 /**
  * Adapter for the cases on the Sophos Central "classic dashboard" (REST /cases/v1), for customers not yet
@@ -74,6 +75,11 @@ export class ClassicApi implements CaseBackend {
   private licenses = new LicenseStore(() => fetchLicenses(this.conn, this.tenantId, false));
   getLicenses(force = false) {
     return this.licenses.get(force);
+  }
+
+  private health = new HealthStore(() => fetchAccountHealth(this.conn, this.apiHost, this.tenantId));
+  getAccountHealth(force = false) {
+    return this.health.get(force);
   }
 
   private get<T>(path: string) {

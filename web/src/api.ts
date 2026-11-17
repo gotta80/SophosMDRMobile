@@ -9,6 +9,7 @@ import type {
   Reference,
   TenantInfo,
   TenantLicenses,
+  AccountHealth,
 } from './types';
 
 export class ApiError extends Error {
@@ -45,6 +46,7 @@ export const api = {
   tenants: () => req<{ tenants: TenantInfo[]; probing: boolean }>('/api/tenants'),
   refreshTenants: () => req<{ ok: true }>('/api/tenants/refresh', post({})),
   licenses: (refresh = false) => req<TenantLicenses>(`/api/licenses${refresh ? '?refresh=1' : ''}`),
+  accountHealth: (refresh = false) => req<AccountHealth>(`/api/account-health${refresh ? '?refresh=1' : ''}`),
   portfolio: () => req<{ portfolio: PortfolioItem[] }>('/api/portfolio').then((r) => r.portfolio),
 
   cases: (status?: string[]) =>

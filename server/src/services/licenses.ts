@@ -5,6 +5,8 @@
  * Fusion and classic customers. For Fusion customers, if the REST call fails, the GraphQL `tenantLicenses` query is
  * used as a fallback (no dates or quantities there). The MDR level comes from the product codes:
  *   ...MTR-ADV... -> MDR Plus (formerly MDR Complete / MTR Advanced)
+ *   ...MDR-COMPLETE... (MDR-COMPLETE, SRVMDR-COMPLETE) -> MDR Plus
+ *   ...MDR / SRVMDR / USRMDR... -> MDR
  *   ...MTR-STD... -> MDR (formerly MDR Essential / MTR Standard)
  * Expired licenses and pay-as-you-go licenses with no seat in use never count for the level.
  */
@@ -38,8 +40,8 @@ export function isActive(l: Licensish, now = Date.now()): boolean {
 export function mdrLevel(items: Licensish[], now = Date.now()): MdrLevel {
   const live = items.filter((l) => isActive(l, now));
   const codes = live.map((l) => l.code.toUpperCase());
-  if (codes.some((c) => c.includes('MTR-ADV'))) return 'mdr_plus';
-  if (codes.some((c) => c.includes('MTR-STD'))) return 'mdr';
+  if (codes.some((c) => c.includes('MTR-ADV') || c.includes('MDR-COMPLETE'))) return 'mdr_plus';
+  if (codes.some((c) => c.includes('MTR-STD') || /(^|[^A-Z])(SRV|USR)?MDR($|[^A-Z])/.test(c))) return 'mdr';
   if (live.some((l) => isMdrProduct(l.code, l.name ?? ''))) return 'mdr';
   return 'none';
 }

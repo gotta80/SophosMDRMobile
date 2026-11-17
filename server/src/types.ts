@@ -157,6 +157,21 @@ export interface LicenseItem {
   features?: string[];
 }
 
+/** One check of the Sophos Central Account Health Check. */
+export interface HealthItem {
+  id: string;
+  group: 'endpoint' | 'mdr';
+  score: number; // 0..100
+  total?: number; // devices / policies examined
+  snoozed: boolean;
+  detail: string[]; // policies not on the recommended settings, missing MDR settings
+}
+export interface AccountHealth {
+  score: number | null; // lowest score of the checks (null when none applies)
+  items: HealthItem[];
+  fetchedAt: string;
+}
+
 export interface TenantLicenses {
   mdr: MdrLevel;
   licenses: LicenseItem[];
