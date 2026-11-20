@@ -14,7 +14,8 @@ function safeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ha, hb);
 }
 
-export const pinMatches = (pin: string) => !!config.accessPin && safeEqual(pin, config.accessPin);
+/** True if `pin` is one of the configured PINs (every PIN is compared, so the time does not reveal which one matched). */
+export const pinMatches = (pin: string) => config.accessPins.map((p) => safeEqual(pin, p)).reduce((a, b) => a || b, false);
 
 function createToken(): string {
   const exp = Date.now() + config.sessionDays * 86_400_000;

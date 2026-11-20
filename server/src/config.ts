@@ -16,7 +16,8 @@ export const config = {
   /** Behind a reverse proxy: legge X-Forwarded-* (req.secure, req.ip). */
   trustProxy: bool(process.env.TRUST_PROXY, false),
 
-  accessPin: process.env.APP_ACCESS_PIN || '',
+  /** Access PINs: APP_ACCESS_PIN accepts several, separated by commas. */
+  accessPins: (process.env.APP_ACCESS_PIN || '').split(',').map((s) => s.trim()).filter(Boolean),
   sessionSecret: process.env.SESSION_SECRET || '',
   sessionDays: Number(process.env.SESSION_DAYS || 30),
   /**
@@ -53,7 +54,7 @@ export const config = {
 
 export function validateConfig(): string[] {
   const errors: string[] = [];
-  if (!config.accessPin) errors.push('APP_ACCESS_PIN is missing: set it in the .env file');
+  if (config.accessPins.length === 0) errors.push('APP_ACCESS_PIN is missing: set it in the .env file');
   if (!config.mock && config.sophos.connections.length === 0) {
     errors.push('SOPHOS_CLIENT_ID / SOPHOS_CLIENT_SECRET are missing (or use MOCK_MODE=true)');
   }
