@@ -7,7 +7,17 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3456
+    volumes:
+      - audit-data:/data   # activity log (audit.jsonl)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # BIND_IP: 127.0.0.1 (default) if a reverse proxy on the same host publishes the app over HTTPS;
     # or the server's LAN IP to reach it from the local network (HTTP, PIN-protected).
     ports:
       - "${BIND_IP:-127.0.0.1}:3456:3456"
+
+volumes:
+  audit-data:

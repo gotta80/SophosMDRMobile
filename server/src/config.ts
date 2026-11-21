@@ -19,6 +19,8 @@ export const config = {
   /** Access PINs: APP_ACCESS_PIN accepts several, separated by commas. */
   accessPins: (process.env.APP_ACCESS_PIN || '').split(',').map((s) => s.trim()).filter(Boolean),
   sessionSecret: process.env.SESSION_SECRET || '',
+  /** Audit log file (JSON lines). Production default: /data/audit.jsonl (Docker volume); empty = memory + container log only. */
+  auditFile: process.env.AUDIT_LOG_FILE ?? (isProd ? '/data/audit.jsonl' : ''),
   sessionDays: Number(process.env.SESSION_DAYS || 30),
   /**
    * Cookie "Secure": 'auto' (default) = only if the request is HTTPS (req.secure, which with TRUST_PROXY

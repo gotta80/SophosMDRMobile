@@ -9,7 +9,8 @@ import {
   loginBlocked,
   loginFailed,
   loginSucceeded,
-  pinMatches,
+  pinUser,
+  sessionUser,
   requireAuth,
   setSessionCookie,
 } from './auth';
@@ -36,6 +37,9 @@ if (errors.length) {
 /** Customer registry: real (Sophos) or demo. */
 const reg = config.mock ? mockRegistry : registry;
 reg.start();
+
+import { audit, readAudit } from './audit';
+import { renderAuditPage } from './auditPage';
 
 const app = express();
 app.disable('x-powered-by');
@@ -75,6 +79,12 @@ async function backendFor(req: Request): Promise<CaseBackend | null> {
   return id ? reg.get(id) : reg.first();
 }
 
+/** Records an action of the signed-in user in the audit log (customer = the one selected in the app). */
+function track(req: Request, action: string, extra: { caseId?: string; detail?: string } = {}) {
+  const id = String(req.headers['x-app-tenant'] ?? '').trim();
+  audit({ user: sessionUser(req) ?? '-', ip: req.ip || 'unknown', action, tenant: id ? reg.list().find((t) => t.id === id)?.name : undefined, ...extra });
+}
+
 /** Answers 404/405 if the customer is unavailable or does not support the requested feature. */
 async function tenantRoute(
   req: Request,
@@ -93,23 +103,48 @@ async function tenantRoute(
 // ------------------------------------------------------------------ API
 app.get('/api/health', (_req, res) => res.json({ ok: true, mock: config.mock }));
 
+/** Activity log page: only for the first PIN (user1), not linked from the app. Filters: ?user= &action= &n= &lang=en */
+app.get('/admin/audit', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  const user = sessionUser(req);
+  if (!user) return res.status(401).send('<!doctype html><meta charset="utf-8"><p>Sign in to the app first, then reload this page.</p>');
+  if (user !== 'user1') return res.status(403).send('<!doctype html><meta charset="utf-8"><p>Forbidden.</p>');
+  const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 40) : undefined);
+  res.send(
+    renderAuditPage(readAudit(), {
+      user: str(req.query.user),
+      action: str(req.query.action),
+      limit: Math.min(Math.max(Number(req.query.n) || 200, 1), 1000),
+      lang: req.query.lang === 'en' ? 'en' : 'it',
+    }),
+  );
+});
+
 app.get('/api/session', (req, res) => res.json({ authenticated: isAuthenticated(req), mock: config.mock }));
 
 app.post('/api/login', (req, res) => {
   const ip = req.ip || 'unknown';
   const wait = loginBlocked(ip);
-  if (wait) return res.status(429).json({ error: 'too_many_attempts', retryAfter: wait });
+  if (wait) {
+    audit({ user: '-', ip, action: 'login_blocked' });
+    return res.status(429).json({ error: 'too_many_attempts', retryAfter: wait });
+  }
   const pin = typeof req.body?.pin === 'string' ? req.body.pin : '';
-  if (!pinMatches(pin)) {
+  const user = pinUser(pin);
+  if (!user) {
     loginFailed(ip);
+    audit({ user: '-', ip, action: 'login_failed' });
     return res.status(401).json({ error: 'invalid_pin' });
   }
   loginSucceeded(ip);
-  setSessionCookie(req, res);
+  setSessionCookie(req, res, user);
+  audit({ user, ip, action: 'login' });
   res.json({ ok: true });
 });
 
 app.post('/api/logout', (req, res) => {
+  track(req, 'logout');
   clearSessionCookie(req, res);
   res.json({ ok: true });
 });
@@ -120,7 +155,8 @@ app.get('/api/tenants', requireAuth, (_req, res) => {
 });
 
 /** Re-runs the customer check in the background (e.g. after a migration to Fusion or a new delegation). */
-app.post('/api/tenants/refresh', requireAuth, (_req, res) => {
+app.post('/api/tenants/refresh', requireAuth, (req, res) => {
+  track(req, 'recheck');
   void reg.refresh();
   res.json({ ok: true });
 });
@@ -180,6 +216,7 @@ app.get(
     tenantRoute(req, res, null, async (api) => {
       const c = await api.getCaseDetails(String(req.params.id));
       if (!c) return res.status(404).json({ error: 'not_found' });
+      track(req, 'case_open', { caseId: String(req.params.id) });
       res.json({ case: c });
     }),
   ),
@@ -192,7 +229,9 @@ app.post(
     tenantRoute(req, res, 'comments', async (api) => {
       const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
       if (!text || text.length > 5000) return res.status(400).json({ error: 'invalid_text' });
-      res.status(201).json({ comment: await api.addCaseComment(String(req.params.id), text) });
+      const comment = await api.addCaseComment(String(req.params.id), text);
+      track(req, 'comment', { caseId: String(req.params.id), detail: `${text.length} chars` });
+      res.status(201).json({ comment });
     }),
   ),
 );
@@ -229,6 +268,7 @@ app.post(
       };
       if (!input.verdictId) return res.status(400).json({ error: 'verdict_required' });
       await api.classifyCase(String(req.params.id), input);
+      track(req, 'classify', { caseId: String(req.params.id), detail: `verdict ${input.verdictId}${input.secondaryVerdictId ? ` / ${input.secondaryVerdictId}` : ''}${input.close ? ', closed' : ''}` });
       res.json({ ok: true });
     }),
   ),
@@ -237,7 +277,13 @@ app.post(
 app.get(
   '/api/cases/:id/ai',
   requireAuth,
-  wrap((req, res) => tenantRoute(req, res, 'ai', async (api) => res.json({ text: await api.aiCaseSummary(String(req.params.id)) }))),
+  wrap((req, res) =>
+    tenantRoute(req, res, 'ai', async (api) => {
+      const text = await api.aiCaseSummary(String(req.params.id));
+      track(req, 'ai_summary', { caseId: String(req.params.id) });
+      res.json({ text });
+    }),
+  ),
 );
 
 app.post(
@@ -247,7 +293,9 @@ app.post(
     tenantRoute(req, res, 'ai', async (api) => {
       const detectionId = typeof req.body?.detectionId === 'string' ? req.body.detectionId : '';
       if (!detectionId) return res.status(400).json({ error: 'detection_required' });
-      res.json({ text: await api.aiDetection(String(req.params.id), detectionId) });
+      const text = await api.aiDetection(String(req.params.id), detectionId);
+      track(req, 'ai_detection', { caseId: String(req.params.id) });
+      res.json({ text });
     }),
   ),
 );

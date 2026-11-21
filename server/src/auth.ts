@@ -14,20 +14,33 @@ function safeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ha, hb);
 }
 
-/** True if `pin` is one of the configured PINs (every PIN is compared, so the time does not reveal which one matched). */
-export const pinMatches = (pin: string) => config.accessPins.map((p) => safeEqual(pin, p)).reduce((a, b) => a || b, false);
-
-function createToken(): string {
-  const exp = Date.now() + config.sessionDays * 86_400_000;
-  return `${exp}.${hmac(String(exp))}`;
+/**
+ * User of a PIN: "user1", "user2"... by position in APP_ACCESS_PIN; null if it is not a configured PIN.
+ * Every PIN is compared, so the time does not reveal which one matched.
+ */
+export function pinUser(pin: string): string | null {
+  let found: string | null = null;
+  config.accessPins.forEach((p, i) => {
+    if (safeEqual(pin, p) && found === null) found = `user${i + 1}`;
+  });
+  return found;
 }
 
-function tokenValid(token: string | undefined): boolean {
-  if (!token) return false;
-  const [exp, sig] = token.split('.');
-  if (!exp || !sig || !/^\d+$/.test(exp)) return false;
-  if (Number(exp) < Date.now()) return false;
-  return safeEqual(sig, hmac(exp));
+/** Session token: `<expiry>.<user>.<signature>` (older tokens `<expiry>.<signature>` are still accepted, user "unknown"). */
+function createToken(user: string): string {
+  const exp = Date.now() + config.sessionDays * 86_400_000;
+  return `${exp}.${user}.${hmac(`${exp}.${user}`)}`;
+}
+
+/** The user of a valid token, or null. */
+function tokenUser(token: string | undefined): string | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  const [exp] = parts;
+  if (!exp || !/^\d+$/.test(exp) || Number(exp) < Date.now()) return null;
+  if (parts.length === 2) return safeEqual(parts[1], hmac(exp)) ? 'unknown' : null;
+  if (parts.length === 3 && /^user\d+$/.test(parts[1])) return safeEqual(parts[2], hmac(`${exp}.${parts[1]}`)) ? parts[1] : null;
+  return null;
 }
 
 function readCookie(req: Request, name: string): string | undefined {
@@ -42,8 +55,8 @@ function readCookie(req: Request, name: string): string | undefined {
 
 const secureFor = (req: Request) => (config.cookieSecure === 'auto' ? req.secure : config.cookieSecure);
 
-export function setSessionCookie(req: Request, res: Response): void {
-  res.cookie(COOKIE, createToken(), {
+export function setSessionCookie(req: Request, res: Response, user: string): void {
+  res.cookie(COOKIE, createToken(user), {
     httpOnly: true,
     secure: secureFor(req),
     sameSite: 'lax',
@@ -56,7 +69,9 @@ export function clearSessionCookie(req: Request, res: Response): void {
   res.clearCookie(COOKIE, { httpOnly: true, secure: secureFor(req), sameSite: 'lax', path: '/' });
 }
 
-export const isAuthenticated = (req: Request) => tokenValid(readCookie(req, COOKIE));
+/** User of the session of the request ('user1'...), or null when not signed in. */
+export const sessionUser = (req: Request) => tokenUser(readCookie(req, COOKIE));
+export const isAuthenticated = (req: Request) => sessionUser(req) !== null;
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (isAuthenticated(req)) return next();
